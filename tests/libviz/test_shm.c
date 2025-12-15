@@ -1,11 +1,11 @@
-"""
+/*
 C unit tests for shared memory reader.
 
 Compile with: gcc -o test_shm test_shm.c ../src/shm_reader.c -I../src -I../bindings -lrt -lpthread
 
 Note: This is a stub test file. Full implementation requires linking
 against compiled libviz components.
-"""
+*/
 
 #include <stdio.h>
 #include <assert.h>
