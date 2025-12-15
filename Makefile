@@ -90,7 +90,7 @@ clean:
 
 mock-audio: venv
 	@echo "Generating mock audio file..."
-	$(PYTHON_VENV) tools/mock_audio_gen.py
+	$(PYTHON_VENV) tools/mock_audio_gen.py sine_sweep
 
 run: venv
 	@echo "Starting AudioViz system..."
