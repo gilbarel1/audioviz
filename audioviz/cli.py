@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-
+import numpy as np
 from .audio import load_audio
 from .stft import compute_stft
 
@@ -66,10 +66,6 @@ def main() -> int:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
-
-
-# Required for numpy in print
-import numpy as np
 
 if __name__ == '__main__':
     sys.exit(main())
