@@ -1,14 +1,15 @@
 """Audio file loading using soundfile with streaming support."""
 
 from collections.abc import Generator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
 
 import numpy as np
 import soundfile as sf
 
 
-class AudioChunk(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class AudioChunk:
     """A chunk of audio data with metadata."""
     samples: np.ndarray
     sample_rate: int
@@ -16,7 +17,8 @@ class AudioChunk(NamedTuple):
     is_last: bool
 
 
-class AudioInfo(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class AudioInfo:
     """Audio file metadata."""
     sample_rate: int
     channels: int
