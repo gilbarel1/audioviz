@@ -24,6 +24,7 @@ class AudioInfo:
     channels: int
     frames: int
     duration: float
+    subtype: str
 
 
 def audio_info(filepath: str | Path) -> AudioInfo:
@@ -42,6 +43,7 @@ def audio_info(filepath: str | Path) -> AudioInfo:
             channels=f.channels,
             frames=f.frames,
             duration=f.frames / f.samplerate,
+            subtype=f.subtype,
         )
 
 
