@@ -19,7 +19,15 @@ class AudioChunk:
 
 @dataclass(frozen=True, slots=True)
 class AudioInfo:
-    """Audio file metadata."""
+    """Audio file metadata.
+    
+    Attributes:
+        sample_rate: Sample rate in Hz.
+        channels: Number of audio channels.
+        frames: Total number of frames.
+        duration: Duration in seconds.
+        subtype: Native encoding format (e.g., PCM_16, PCM_24, FLOAT, DOUBLE).
+    """
     sample_rate: int
     channels: int
     frames: int
