@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from audioviz.audio import AudioChunk, AudioInfo, get_audio_info, load_audio, stream_audio
+from audioviz.audio import AudioChunk, AudioInfo, audio_info, load_audio, stream_audio
 
 
 @pytest.fixture
@@ -65,9 +65,9 @@ def test_load_audio_nonexistent_file() -> None:
 
 # --- Streaming tests ---
 
-def test_get_audio_info(sample_wav_file: Path) -> None:
-    """Test that get_audio_info returns correct metadata."""
-    info = get_audio_info(sample_wav_file)
+def test_audio_info(sample_wav_file: Path) -> None:
+    """Test that audio_info returns correct metadata."""
+    info = audio_info(sample_wav_file)
     
     assert isinstance(info, AudioInfo)
     assert info.sample_rate == 44100

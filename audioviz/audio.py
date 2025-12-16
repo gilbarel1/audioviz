@@ -26,9 +26,9 @@ class AudioInfo:
     duration: float
 
 
-def get_audio_info(filepath: str | Path) -> AudioInfo:
+def audio_info(filepath: str | Path) -> AudioInfo:
     """
-    Get audio file metadata without loading the entire file.
+    Audio file metadata without loading the entire file.
     
     Args:
         filepath: Path to the audio file.
