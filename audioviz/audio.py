@@ -78,21 +78,3 @@ def stream_audio(
                 channels=channels,
                 is_last=is_last,
             )
-
-
-def load_audio(filepath: str | Path) -> tuple[np.ndarray, int]:
-    """
-    Load an entire audio file into memory.
-    
-    For large files, prefer stream_audio() to process in chunks.
-    
-    Args:
-        filepath: Path to the audio file.
-        
-    Returns:
-        Tuple of (samples, sample_rate).
-        samples: Audio data as float64 numpy array.
-                 Shape is (frames,) for mono, (frames, channels) for stereo.
-    """
-    samples, sample_rate = sf.read(filepath, dtype='float64')
-    return samples, sample_rate

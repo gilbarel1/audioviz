@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from audioviz.audio import AudioChunk, AudioInfo, audio_info, load_audio, stream_audio
+from audioviz.audio import AudioChunk, AudioInfo, audio_info, stream_audio
 
 
 @pytest.fixture
@@ -41,38 +41,6 @@ def stereo_wav_file(tmp_path: Path) -> Path:
     return filepath
 
 
-def test_load_audio_returns_samples_and_rate(sample_wav_file: Path) -> None:
-    """Test that load_audio returns samples and sample rate."""
-    samples, sample_rate = load_audio(sample_wav_file)
-    
-    assert isinstance(samples, np.ndarray)
-    assert isinstance(sample_rate, int)
-    assert sample_rate == 44100
-
-
-def test_load_audio_mono_output(sample_wav_file: Path) -> None:
-    """Test that load_audio returns correct shape for mono file."""
-    samples, _ = load_audio(sample_wav_file)
-    
-    assert samples.ndim == 1
-
-
-def test_load_audio_stereo_output(stereo_wav_file: Path) -> None:
-    """Test that load_audio preserves stereo channels."""
-    samples, _ = load_audio(stereo_wav_file)
-    
-    assert samples.ndim == 2
-    assert samples.shape[1] == 2
-
-
-def test_load_audio_nonexistent_file() -> None:
-    """Test that load_audio raises error for missing file."""
-    with pytest.raises(Exception):
-        load_audio("nonexistent.wav")
-
-
-# --- Streaming tests ---
-
 def test_audio_info(sample_wav_file: Path) -> None:
     """Test that audio_info returns correct metadata."""
     info = audio_info(sample_wav_file)
@@ -104,17 +72,6 @@ def test_stream_audio_chunk_sizes(sample_wav_file: Path) -> None:
     
     # Last chunk can be smaller
     assert len(chunks[-1].samples) <= chunk_size
-
-
-def test_stream_audio_total_samples(sample_wav_file: Path) -> None:
-    """Test that streaming produces same total samples as load_audio."""
-    full_samples, _ = load_audio(sample_wav_file)
-    
-    streamed_samples = np.concatenate([c.samples for c in stream_audio(sample_wav_file)])
-    
-    assert len(streamed_samples) == len(full_samples)
-    np.testing.assert_array_almost_equal(streamed_samples, full_samples)
-
 
 def test_stream_audio_stereo_preserves_channels(stereo_wav_file: Path) -> None:
     """Test that stereo files preserve both channels when streaming."""

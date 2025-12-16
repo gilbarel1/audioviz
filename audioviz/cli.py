@@ -3,7 +3,7 @@
 import argparse
 import sys
 import numpy as np
-from .audio import load_audio
+from .audio import audio_info, stream_audio
 from .stft import compute_stft
 
 
@@ -27,17 +27,25 @@ def main() -> int:
     args = parser.parse_args()
     
     try:
-        # Load audio
+        # Get audio info
         print(f"Loading: {args.audio_file}")
-        samples, sample_rate = load_audio(args.audio_file)
-        print(f"  Sample rate: {sample_rate} Hz")
-        print(f"  Duration: {len(samples) / sample_rate:.2f} seconds")
-        print(f"  Samples: {len(samples)}")
+        info = audio_info(args.audio_file)
+        print(f"  Sample rate: {info.sample_rate} Hz")
+        print(f"  Duration: {info.duration:.2f} seconds")
+        print(f"  Channels: {info.channels}")
+        print(f"  Frames: {info.frames}")
+        
+        # Stream and concatenate samples for STFT
+        samples = np.concatenate([chunk.samples for chunk in stream_audio(args.audio_file)])
+        
+        # For stereo, use first channel for now
+        if samples.ndim > 1:
+            samples = samples[:, 0]
         
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
         frequencies, times, magnitudes = compute_stft(
-            samples, sample_rate, nperseg=args.nperseg
+            samples, info.sample_rate, nperseg=args.nperseg
         )
         print(f"  Frequency bins: {len(frequencies)}")
         print(f"  Time frames: {len(times)}")
