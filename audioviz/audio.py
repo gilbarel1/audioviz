@@ -48,7 +48,6 @@ def audio_info(filepath: str | Path) -> AudioInfo:
 def stream_audio(
     filepath: str | Path,
     chunk_size: int = 4096,
-    mono: bool = True,
 ) -> Generator[AudioChunk, None, None]:
     """
     Stream audio file in chunks for memory-efficient processing.
@@ -56,24 +55,20 @@ def stream_audio(
     Args:
         filepath: Path to the audio file.
         chunk_size: Number of frames per chunk (default: 4096).
-        mono: If True, convert stereo to mono by averaging channels.
         
     Yields:
         AudioChunk containing samples, sample_rate, channels, and is_last flag.
+        For stereo files, samples shape is (chunk_size, channels).
     """
     with sf.SoundFile(filepath) as f:
         sample_rate = f.samplerate
-        channels = 1 if mono else f.channels
+        channels = f.channels
         
         while True:
             chunk = f.read(chunk_size, dtype='float64')
             
             if len(chunk) == 0:
                 break
-            
-            # Convert stereo to mono if requested
-            if mono and chunk.ndim > 1:
-                chunk = np.mean(chunk, axis=1)
             
             is_last = len(chunk) < chunk_size or f.tell() >= f.frames
             
@@ -97,12 +92,7 @@ def load_audio(filepath: str | Path) -> tuple[np.ndarray, int]:
     Returns:
         Tuple of (samples, sample_rate).
         samples: Audio data as float64 numpy array.
-                 If stereo, converted to mono by averaging channels.
+                 Shape is (frames,) for mono, (frames, channels) for stereo.
     """
     samples, sample_rate = sf.read(filepath, dtype='float64')
-    
-    # Convert stereo to mono by averaging channels
-    if samples.ndim > 1:
-        samples = np.mean(samples, axis=1)
-    
     return samples, sample_rate

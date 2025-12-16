@@ -51,10 +51,18 @@ def test_load_audio_returns_samples_and_rate(sample_wav_file: Path) -> None:
 
 
 def test_load_audio_mono_output(sample_wav_file: Path) -> None:
-    """Test that load_audio returns mono (1D) array."""
+    """Test that load_audio returns correct shape for mono file."""
     samples, _ = load_audio(sample_wav_file)
     
     assert samples.ndim == 1
+
+
+def test_load_audio_stereo_output(stereo_wav_file: Path) -> None:
+    """Test that load_audio preserves stereo channels."""
+    samples, _ = load_audio(stereo_wav_file)
+    
+    assert samples.ndim == 2
+    assert samples.shape[1] == 2
 
 
 def test_load_audio_nonexistent_file() -> None:
@@ -108,10 +116,11 @@ def test_stream_audio_total_samples(sample_wav_file: Path) -> None:
     np.testing.assert_array_almost_equal(streamed_samples, full_samples)
 
 
-def test_stream_audio_stereo_to_mono(stereo_wav_file: Path) -> None:
-    """Test that stereo files are converted to mono when streaming."""
-    chunks = list(stream_audio(stereo_wav_file, mono=True))
+def test_stream_audio_stereo_preserves_channels(stereo_wav_file: Path) -> None:
+    """Test that stereo files preserve both channels when streaming."""
+    chunks = list(stream_audio(stereo_wav_file))
     
     for chunk in chunks:
-        assert chunk.samples.ndim == 1
-        assert chunk.channels == 1
+        assert chunk.samples.ndim == 2
+        assert chunk.samples.shape[1] == 2
+        assert chunk.channels == 2
