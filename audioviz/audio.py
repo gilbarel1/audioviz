@@ -24,6 +24,7 @@ class AudioInfo:
     channels: int
     frames: int
     duration: float
+    subtype: str
 
 
 def audio_info(filepath: str | Path) -> AudioInfo:
@@ -34,7 +35,7 @@ def audio_info(filepath: str | Path) -> AudioInfo:
         filepath: Path to the audio file.
         
     Returns:
-        AudioInfo with sample_rate, channels, frames, and duration.
+        AudioInfo with sample_rate, channels, frames, duration, and subtype.
     """
     with sf.SoundFile(filepath) as f:
         return AudioInfo(
@@ -42,6 +43,7 @@ def audio_info(filepath: str | Path) -> AudioInfo:
             channels=f.channels,
             frames=f.frames,
             duration=f.frames / f.samplerate,
+            subtype=f.subtype,
         )
 
 

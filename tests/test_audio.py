@@ -82,6 +82,8 @@ def test_audio_info(sample_wav_file: Path) -> None:
     assert info.channels == 1
     assert info.frames == 22050  # 0.5s * 44100
     assert abs(info.duration - 0.5) < 0.001
+    assert isinstance(info.subtype, str)
+    assert len(info.subtype) > 0  # Should have a valid subtype
 
 
 def test_stream_audio_yields_chunks(sample_wav_file: Path) -> None:
