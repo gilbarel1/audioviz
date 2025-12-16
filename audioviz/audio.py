@@ -50,6 +50,7 @@ def audio_info(filepath: str | Path) -> AudioInfo:
 def stream_audio(
     filepath: str | Path,
     chunk_size: int = 4096,
+    dtype: str | None = None,
 ) -> Generator[AudioChunk, None, None]:
     """
     Stream audio file in chunks for memory-efficient processing.
@@ -57,6 +58,8 @@ def stream_audio(
     Args:
         filepath: Path to the audio file.
         chunk_size: Number of frames per chunk (default: 4096).
+        dtype: Output dtype ('float32', 'float64', 'int16', 'int32').
+               If None, uses native format (no conversion).
         
     Yields:
         AudioChunk containing samples, sample_rate, channels, and is_last flag.
@@ -67,7 +70,10 @@ def stream_audio(
         channels = f.channels
         
         while True:
-            chunk = f.read(chunk_size, dtype='float64')
+            if dtype is None:
+                chunk = f.read(chunk_size)
+            else:
+                chunk = f.read(chunk_size, dtype=dtype)
             
             if len(chunk) == 0:
                 break
