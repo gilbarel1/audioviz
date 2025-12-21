@@ -1,7 +1,6 @@
 """Tests for STFT computation."""
 
 import numpy as np
-import pytest
 
 from audioviz.stft import compute_stft
 
