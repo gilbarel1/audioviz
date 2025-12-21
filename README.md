@@ -1,22 +1,49 @@
 # audioviz
 
-This project is a basic cross-language system for visualizing music, inspired by classic audio visualizers.  
-The goal is to process audio in **Python** and render visuals in **C**, with a clean separation between the two parts.
+Audio visualization with Python FFT processing.
 
 ## Overview
 
-- Python loads an audio file, splits it into buffers, and performs Fourier transforms.
-- The processed frequency data is passed to a C component.
-- The C component is responsible for drawing the visual effects.
+This project loads audio files and computes Short-Time Fourier Transform (STFT) to analyze frequency content over time.
 
-## Features
+## Quick Start
 
-- Audio handling and FFT processing in Python.
-- Graphics rendering in C.
-- Clear separation of concerns between languages.
-- Simple architecture suitable as a template for future expansion.
+### Using Docker (Recommended)
 
-## Repository Structure (High-Level)
-To be continued...
+```bash
+make run
+make attach
+make deploy
+```
 
+### Usage
 
+```bash
+# Analyze an audio file
+audioviz path/to/audio.wav
+
+# With custom FFT window size
+audioviz path/to/audio.wav --nperseg 2048
+```
+
+### Running Tests
+
+```bash
+make test
+```
+
+## Project Structure
+
+```
+audioviz/
+├── audioviz/           # Python package
+│   ├── __init__.py
+│   ├── __main__.py     # Entry point for python -m audioviz
+│   ├── audio.py        # Audio loading with soundfile
+│   ├── cli.py          # Command-line interface
+│   └── stft.py         # STFT computation with SciPy
+├── tests/              # Test suite
+├── deployment/         # Docker configuration
+├── Makefile            # Build automation
+└── pyproject.toml      # Package configuration
+```
