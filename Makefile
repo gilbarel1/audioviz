@@ -1,7 +1,7 @@
 # === Variables ===
 CONTAINER_NAME = audioviz-dev-container
 IMAGE_NAME = audioviz-dev-image
-WORKSPACE_DIR ?= $(PWD)
+WORKSPACE_DIR ?= $(CURDIR)
 
 # === Container Management ===
 
@@ -42,6 +42,11 @@ deploy:
 	@echo "📦 Installing audioviz..."
 	pip install -e .
 	@echo "✅ Deployment complete!"
+
+deploy-librenderer:
+	@echo "📦 Installing librenderer..."
+	pip install ./librenderer
+	@echo "✅ librenderer installed!"
 
 # === Testing ===
 

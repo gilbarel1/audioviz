@@ -22,7 +22,7 @@ RUN python3 -m venv /venv
 
 # Upgrade pip and install necessary Python packages
 RUN /venv/bin/pip install --upgrade pip && \
-    /venv/bin/pip install pytest soundfile scipy numpy
+    /venv/bin/pip install pytest soundfile scipy numpy pybind11 scikit-build-core cmake
 
 # Set the virtual environment as the default Python environment
 ENV PATH="/venv/bin:$PATH"
