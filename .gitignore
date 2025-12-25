@@ -10,6 +10,17 @@ build/
 # Testing
 .pytest_cache/
 .coverage
+coverage/
+
+# C++ Build Artifacts
+*.so
+*.o
+*.gcda
+*.gcno
+*.gcov
+*.info
+libaudioviz/build/
+compile_commands.json
 
 # IDE
 .vscode/
