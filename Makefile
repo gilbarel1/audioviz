@@ -38,6 +38,13 @@ stop:
 
 # === Build & Install ===
 
+build-c:
+	@echo "🔨 Building C++ renderer with CMake..."
+	@mkdir -p build
+	@cd libaudioviz && cmake -S . -B build -G Ninja
+	@cd libaudioviz && cmake --build build
+	@echo "✅ Build complete! Executable at: build/audioviz_renderer"
+
 deploy:
 	@echo "📦 Installing audioviz..."
 	pip install -e .
@@ -66,8 +73,9 @@ help:
 	@echo "  attach           - Attach to the running Docker container"
 	@echo "  stop             - Stop the Docker container"
 	@echo ""
+	@echo "  build-c          - Build C++ renderer with CMake"
 	@echo "  deploy           - Install audioviz in editable mode"
 	@echo "  test             - Run all tests"
 	@echo "  clean            - Remove build artifacts"
 
-.PHONY: build-container run attach stop deploy test clean help
+.PHONY: build-container run attach stop build-c deploy test clean help
