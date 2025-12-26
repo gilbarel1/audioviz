@@ -3,8 +3,8 @@
 import argparse
 import sys
 import numpy as np
-from .audio import audio_info, stream_audio
-from .stft import compute_stft
+from .audioviz.audio import audio_info, stream_audio
+from .audioviz.stft import compute_stft
 
 
 def main() -> int:

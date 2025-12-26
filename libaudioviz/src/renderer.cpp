@@ -1,0 +1,28 @@
+#include "renderer.h"
+#include <iostream>
+
+
+// for now, i implemented a dummy class doing basicly nothing but printing bullshit. 
+//TODO add real impl...
+Renderer::Renderer(int width, int height) : width_(width), height_(height) {
+    std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
+}
+
+Renderer::~Renderer() {
+    std::cout << "Renderer destroyed" << std::endl;
+}
+
+void Renderer::initialize_window() {
+    std::cout << "Window initialized" << std::endl;
+}
+
+void Renderer::update_data(std::complex<float>* data, size_t size) {
+    // verify data transfer
+    if (size > 0) {
+         std::cout << "Received buffer. First sample: " << data[0] << std::endl;
+    }
+}
+
+void Renderer::render_frame() {
+    std::cout << "Frame rendered" << std::endl;
+}

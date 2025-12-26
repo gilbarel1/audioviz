@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from audioviz.audio import AudioChunk, AudioInfo, audio_info, stream_audio
+from audioviz.audioviz.audio import AudioChunk, AudioInfo, audio_info, stream_audio
 
 
 @pytest.fixture
