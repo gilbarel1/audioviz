@@ -11,7 +11,7 @@ public:
     void initialize_window();
 
     // Main render loop step
-    void render_frame(std::complex<float>* data, size_t size);
+    void render_frame(float* data, size_t size);
 
 private:
 

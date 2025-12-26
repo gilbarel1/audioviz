@@ -1,14 +1,11 @@
 """Command-line interface for AudioViz."""
 
 import argparse
-import signal
 import scipy.signal
 import sys
 import numpy as np
 from .audioviz.audio import audio_info, stream_audio
 import libaudioviz
-import time
-##from .audioviz.stft import compute_stft
 
 
 def main() -> int:
@@ -49,7 +46,6 @@ def main() -> int:
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
 
-        # Use scipy.signal.stft
         f, t, Zxx = scipy.signal.stft(
             samples, 
             fs=info.sample_rate, 
@@ -71,8 +67,10 @@ def main() -> int:
 
         # 5. Render Loop
         for i, frame_data in enumerate(stft_frames):
+
+            magnitudes = np.abs(frame_data).astype(np.float32)
             # Pass the complex frequency data to C++
-            renderer.render_frame(frame_data.astype(np.complex64))
+            renderer.render_frame(magnitudes)
              #TODO: play audio
             #  TODO : Sync playback speed with audio time
            

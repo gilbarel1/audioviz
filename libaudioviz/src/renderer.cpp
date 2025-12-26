@@ -17,9 +17,9 @@ void Renderer::initialize_window() {
 }
 
 
-void Renderer::render_frame(std::complex<float>* data, size_t size) {
+void Renderer::render_frame(float* data, size_t size) {
     std::cout << "Frame rendered" << std::endl;
     if (size > 0) {
-        std::cout << "Data[0]: " << data[0] << " | Size: " << size << std::endl;
-    } 
+        std::cout << "Frame rendered. Bin[0] Magnitude: " << data[0] << std::endl;
+    }
 }
