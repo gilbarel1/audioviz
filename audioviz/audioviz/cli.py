@@ -1,17 +1,17 @@
 """Command-line interface for AudioViz."""
 
 import argparse
-import signal
+import scipy.signal
 import sys
 import numpy as np
 from .audioviz.audio import audio_info, stream_audio
-##from .audioviz.stft import compute_stft
+import libaudioviz
 
 
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='AudioViz - Compute and display frequency amplitudes from audio files'
+        description='AudioViz - Real-time Audio Visualization'
     )
     parser.add_argument(
         'audio_file',
@@ -28,7 +28,7 @@ def main() -> int:
     args = parser.parse_args()
     
     try:
-        # Get audio info
+        # load audio info
         print(f"Loading: {args.audio_file}")
         info = audio_info(args.audio_file)
         print(f"  Sample rate: {info.sample_rate} Hz")
@@ -45,40 +45,47 @@ def main() -> int:
         
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
-        noverlap = nperseg // 2
-        nperseg=args.nperseg
 
-        frequencies, times, stft_result = signal.stft(samples, info.sample_rate, nperseg,noverlap)
+        f, t, Zxx = scipy.signal.stft(
+            samples, 
+            fs=info.sample_rate, 
+            nperseg=args.nperseg, 
+            noverlap=args.nperseg // 2
+        )
+        
+        # Transpose to iterate over time frames (Time x Frequency)
+        # Zxx is (Freqs, Times), we need (Times, Freqs)
+        stft_frames = Zxx.T
+        
+        print(f"  Total frames to render: {len(t)}")
 
-        # Get magnitude (absolute value of complex STFT)
-        magnitudes = np.abs(stft_result)
+        # 4. Initialize C++ Renderer
+        renderer = libaudioviz.Renderer(800, 600)
+        renderer.initialize_window() 
+        
+        print("Starting playback... (Press Ctrl+C to stop)")
 
+        # 5. Render Loop
+        for i, frame_data in enumerate(stft_frames):
 
-        print(f"  Frequency bins: {len(frequencies)}")
-        print(f"  Time frames: {len(times)}")
-        
-        # Print amplitude summary for each time frame
-        print(f"\nFrequency amplitudes (first 80 frames):")
-        print("-" * 60)
-        
-        for i, t in enumerate(times[:80]):
-            frame_magnitudes = magnitudes[:, i]
-            max_idx = np.argmax(frame_magnitudes)
-            max_freq = frequencies[max_idx]
-            max_amp = frame_magnitudes[max_idx]
-            mean_amp = np.mean(frame_magnitudes)
-            
-            print(f"  t={t:.3f}s: max={max_amp:.4f} @ {max_freq:.1f}Hz, mean={mean_amp:.6f}")
-        
-        if len(times) > 10:
-            print(f"  ... ({len(times) - 10} more frames)")
-        
+            magnitudes = np.abs(frame_data).astype(np.float32)
+            # Pass the complex frequency data to C++
+            renderer.render_frame(magnitudes)
+             #TODO: play audio
+            #  TODO : Sync playback speed with audio time
+           
+                
         return 0
         
     except FileNotFoundError:
         print(f"Error: File not found: {args.audio_file}", file=sys.stderr)
         return 1
-    
+    except KeyboardInterrupt:
+        print("\nStopping...")
+        return 0
+    except Exception as e:
+        print(f"An error occurred: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':

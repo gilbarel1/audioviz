@@ -10,11 +10,8 @@ public:
     // Opens the GUI window
     void initialize_window();
 
-    // Receives data from Python (called by the bind )
-    //void update_data(std::complex<float>* data, size_t size);
-
     // Main render loop step
-    void render_frame(std::complex<float>* data, size_t size);
+    void render_frame(float* data, size_t size);
 
 private:
 
