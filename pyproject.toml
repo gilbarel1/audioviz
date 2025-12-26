@@ -1,25 +1,11 @@
-[build-system]
-requires = ["setuptools>=65.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "audioviz"
+name = "audioviz-workspace"
 version = "0.1.0"
-description = "Audio visualization with Python FFT processing"
+description = "Root workspace configuration"
 requires-python = ">=3.10"
-dependencies = [
-    "numpy",
-    "scipy",
-    "soundfile",
-]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-]
-
-[project.scripts]
-audioviz = "audioviz.cli:main"
-
-[tool.setuptools]
-packages = ["audioviz"]
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+pythonpath = ["audioviz", "libaudioviz"]

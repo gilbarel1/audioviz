@@ -1,10 +1,11 @@
 """Command-line interface for AudioViz."""
 
 import argparse
+import signal
 import sys
 import numpy as np
-from .audio import audio_info, stream_audio
-from .stft import compute_stft
+from .audioviz.audio import audio_info, stream_audio
+##from .audioviz.stft import compute_stft
 
 
 def main() -> int:
@@ -44,9 +45,15 @@ def main() -> int:
         
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
-        frequencies, times, magnitudes = compute_stft(
-            samples, info.sample_rate, nperseg=args.nperseg
-        )
+        noverlap = nperseg // 2
+        nperseg=args.nperseg
+
+        frequencies, times, stft_result = signal.stft(samples, info.sample_rate, nperseg,noverlap)
+
+        # Get magnitude (absolute value of complex STFT)
+        magnitudes = np.abs(stft_result)
+
+
         print(f"  Frequency bins: {len(frequencies)}")
         print(f"  Time frames: {len(times)}")
         
@@ -71,6 +78,8 @@ def main() -> int:
     except FileNotFoundError:
         print(f"Error: File not found: {args.audio_file}", file=sys.stderr)
         return 1
+    
+
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from audioviz.stft import compute_stft
+from audioviz.audioviz.stft import compute_stft
 
 
 def test_compute_stft_returns_correct_shapes() -> None:
