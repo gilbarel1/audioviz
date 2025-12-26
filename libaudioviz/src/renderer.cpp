@@ -16,13 +16,13 @@ void Renderer::initialize_window() {
     std::cout << "Window initialized" << std::endl;
 }
 
-void Renderer::update_data(std::complex<float>* data, size_t size) {
+/*void Renderer::update_data(std::complex<float>* data, size_t size) {
     // verify data transfer
     if (size > 0) {
          std::cout << "Received buffer. First sample: " << data[0] << std::endl;
     }
-}
+}*/
 
-void Renderer::render_frame() {
+void Renderer::render_frame(std::complex<float>* data, size_t size) {
     std::cout << "Frame rendered" << std::endl;
 }

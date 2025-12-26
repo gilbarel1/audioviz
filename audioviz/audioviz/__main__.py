@@ -26,13 +26,11 @@ def main():
             # B. Perform FFT in Python (Real Audio -> Complex Frequencies)
             fft_data = np.fft.fft(audio_chunk)
             
-            # C. Pass to C++ (Must cast to complex64 for std::complex<float>)
-            # This is the critical step where Python hands off data to C++
-            renderer.update_data(fft_data.astype(np.complex64))
+            # This is the step where Python hands off data to C++
+            renderer.render_frame(fft_data.astype(np.complex64))
             
-            renderer.render_frame()
             
-            # Slow down slightly so text doesn't fly by too fast
+            # Slow down slightly
             time.sleep(0.1)
 
     except KeyboardInterrupt:

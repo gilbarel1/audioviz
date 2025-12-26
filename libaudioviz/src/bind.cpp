@@ -9,7 +9,7 @@
 namespace py = pybind11;
 
 // Wrapper function to handle NumPy buffer conversion safely
-void update_buffer_wrapper(Renderer& self, py::array_t<std::complex<float>> input_array) {
+void render_frame_wrapper(Renderer& self, py::array_t<std::complex<float>> input_array) {
     // Request access to the numpy buffer (efficient, no copy if format matches)
     py::buffer_info buf = input_array.request();
 
@@ -22,7 +22,7 @@ void update_buffer_wrapper(Renderer& self, py::array_t<std::complex<float>> inpu
     size_t size = buf.shape[0];
 
     // Pass the raw pointer and size to your C++ logic
-    self.update_data(ptr, size);
+    self.render_frame(ptr, size);
 }
 
 PYBIND11_MODULE(_libaudioviz, m) {
@@ -31,6 +31,6 @@ PYBIND11_MODULE(_libaudioviz, m) {
     py::class_<Renderer>(m, "Renderer")
         .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
         .def("initialize_window", &Renderer::initialize_window, "Open the visualization window")
-        .def("update_data", &update_buffer_wrapper, "Pass fourier data to renderer")
-        .def("render_frame", &Renderer::render_frame, "Draw the frame based on current data");
+        //.def("update_data", &update_buffer_wrapper, "Pass fourier data to renderer")
+        .def("render_frame", &render_frame_wrapper, "Draw the frame based on current data");
 }
