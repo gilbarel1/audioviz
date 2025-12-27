@@ -13,6 +13,8 @@ RUN apt-get update && \
     python3 python3-dev python3-pip python3-venv \
     libsndfile1 libsndfile1-dev \
     libsdl2-dev \
+    libportaudio2 portaudio19-dev \
+    pulseaudio \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create symbolic link for python3 as python
@@ -23,7 +25,7 @@ RUN python3 -m venv /venv
 
 # Upgrade pip and install necessary Python packages
 RUN /venv/bin/pip install --upgrade pip && \
-    /venv/bin/pip install pytest soundfile scipy numpy
+    /venv/bin/pip install pytest soundfile scipy numpy sounddevice
 
 # Set the virtual environment as the default Python environment
 ENV PATH="/venv/bin:$PATH"
