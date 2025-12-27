@@ -1,25 +1,125 @@
 #include "renderer.h"
 #include <iostream>
-
+#include <algorithm>
+#include <cmath>
 
 // for now, i implemented a dummy class doing basicly nothing but printing bullshit. 
-//TODO add real impl...
-Renderer::Renderer(int width, int height) : width_(width), height_(height) {
+///update- its not dummy but still prints bullshit
+// for now it works, it the future we will improve presentation to look better
+//try running on gc.wav, it looks cool 
+
+Renderer::Renderer(int width, int height) : width_(width), height_(height), window_(nullptr), renderer_(nullptr) {
     std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
 }
 
 Renderer::~Renderer() {
+    if (renderer_) {
+        SDL_DestroyRenderer(renderer_);
+    }
+    if (window_) {
+        SDL_DestroyWindow(window_);
+    }
+    SDL_Quit();
     std::cout << "Renderer destroyed" << std::endl;
 }
 
 void Renderer::initialize_window() {
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        throw std::runtime_error("SDL could not initialize! SDL_Error: " + std::string(SDL_GetError()));
+    }
+
+    // create window
+    window_ = SDL_CreateWindow(
+        "AudioViz Renderer",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        width_,
+        height_,
+        SDL_WINDOW_SHOWN
+    );
+
+    if (!window_) { 
+        throw std::runtime_error("Window could not be created! SDL_Error: " + std::string(SDL_GetError()));
+    }
+
+    // create renderer
+    renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    
+    if (!renderer_) {
+        throw std::runtime_error("Renderer could not be created! SDL_Error: " + std::string(SDL_GetError()));
+    }
+
+    // this print is for debug for now, later i will remove it 
     std::cout << "Window initialized" << std::endl;
 }
 
-
+//take care of all events in queue-> clean the screen-> present one image
 void Renderer::render_frame(float* data, size_t size) {
-    std::cout << "Frame rendered" << std::endl;
-    if (size > 0) {
-        std::cout << "Frame rendered. Bin[0] Magnitude: " << data[0] << std::endl;
+    
+    if (!renderer_) return;
+
+    // take care of sdl events 
+    SDL_Event e;
+    while (SDL_PollEvent(&e) != 0) {
+        if (e.type == SDL_QUIT) {
+            // for now, for every event, just continue the loop
+            // TODO- next step is signal python for sync and take care for real events.
+            
+        }
     }
+
+    // clean the screen
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
+    SDL_RenderClear(renderer_);
+
+    // draw 
+    // We determine the width of each bar based on the window width and number of frequency bins
+    if (size > 0) {
+        //screen center
+        float center_x = width_ / 2.0f;
+        
+        //bar width 
+        float bar_width = static_cast<float>(width_) / size;
+        if (bar_width < 1.0f) bar_width = 1.0f;
+
+        SDL_SetRenderDrawColor(renderer_, 0, 255, 0, 255); // for now, we will present everything in green
+        //TODO- idea- maybe change colors? let user pick color(s)? make it rainbow? idk
+
+        for (size_t i = 0; i < size; ++i) {
+            
+            // scaling and normalization
+            // linear visualization.
+            float magnitude = data[i];
+            float bar_height = std::min(magnitude * 5000.0f, static_cast<float>(height_));
+
+            //trying to draw a mirroring visualization from center
+
+            //draw right
+            SDL_Rect rightRect = {
+                static_cast<int>(center_x + (i * bar_width)),           // x
+                static_cast<int>(height_ - bar_height),    // y (from bottom)
+                static_cast<int>(std::ceil(bar_width)),    // width
+                static_cast<int>(bar_height)               // height
+            };
+
+            SDL_RenderFillRect(renderer_, &rightRect);
+
+            //draw left
+            SDL_Rect leftRect = {
+                static_cast<int>(center_x - ((i + 1) * bar_width)), 
+                static_cast<int>(height_ - bar_height),
+                static_cast<int>(std::ceil(bar_width)),
+                static_cast<int>(bar_height)
+            };
+            SDL_RenderFillRect(renderer_, &leftRect);
+        }
+    }
+
+    // present to screen- update 
+    SDL_RenderPresent(renderer_);
+
+    
+    // this print is for debug for now, later i will remove it 
+    std::cout << "Frame rendered" << std::endl;
 }
