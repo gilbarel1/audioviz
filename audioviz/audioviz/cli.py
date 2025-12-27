@@ -81,8 +81,6 @@ def main() -> int:
             #TODO- maybe need to change sleep time for sync
             processing_time = time.time() - start_time
             sleep_time = max(0, time_per_frame - processing_time)
-
-            #TODO- reduce the waiting time, thats only so i can see for now 
             time.sleep(sleep_time)
             
 
