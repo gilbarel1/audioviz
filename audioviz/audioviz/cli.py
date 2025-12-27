@@ -26,6 +26,12 @@ def main() -> int:
         default=1024,
         help='FFT window size (default: 1024)',
     )
+    parser.add_argument(
+        '--blocksize',
+        type=int,
+        default=8192,
+        help='Audio playback buffer size (default: 8192)',
+    )
     
     args = parser.parse_args()
     
@@ -43,28 +49,29 @@ def main() -> int:
         
         audio_samples = samples
         
-        # For stereo, use first channel for visualization (stereo viz TODO later)
-        if samples.ndim > 1:
-            samples = samples[:, 0]
-        
-        # Compute STFT
+        # Compute STFT for all channels
         print(f"\nComputing STFT (window size: {args.nperseg})...")
-
-        f, t, Zxx = scipy.signal.stft(
-            samples, 
-            fs=info.sample_rate, 
-            nperseg=args.nperseg, 
-            noverlap=args.nperseg // 2
-        )
         
-        # Transpose to iterate over time frames (Time x Frequency)
-        # Zxx is (Freqs, Times), we need (Times, Freqs)
-        stft_frames = Zxx.T
+        if samples.ndim == 1:
+            samples = samples[:, np.newaxis]
         
-        print(f"  Total frames to render: {len(t)}")
-
-        time_per_frame = info.duration / len(stft_frames)
-
+        num_channels = samples.shape[1]
+        
+        # Compute STFT for each channel
+        stft_per_channel = []
+        for ch in range(num_channels):
+            f, t, Zxx = scipy.signal.stft(
+                samples[:, ch], 
+                fs=info.sample_rate, 
+                nperseg=args.nperseg, 
+                noverlap=args.nperseg // 2
+            )
+            stft_per_channel.append(Zxx.T)
+        
+        # Stack all channels: (Times, Channels, Freqs)
+        stft_channels = np.stack(stft_per_channel, axis=1)
+        
+        time_per_frame = info.duration / len(stft_channels)
         # Initialize C++ Renderer
         renderer = libaudioviz.Renderer(800, 600)
         renderer.initialize_window() 
@@ -72,20 +79,19 @@ def main() -> int:
         print("Starting playback... (Press Ctrl+C to stop)")
 
         # Start non-blocking audio playback
-        sd.play(audio_samples, info.sample_rate, blocksize=8192)
+        sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
 
-        # 5. Render Loop
-        for i, frame_data in enumerate(stft_frames):
+        # Render Loop
+        for frame_channels in stft_channels:
             start_time = time.time()
 
-            magnitudes = np.abs(frame_data).astype(np.float32)
-            # Pass the complex frequency data to C++
+            # For now, visualize first channel only
+            magnitudes = np.abs(frame_channels[0]).astype(np.float32)
             renderer.render_frame(magnitudes)
             
             processing_time = time.time() - start_time
             sleep_time = max(0, time_per_frame - processing_time)
             time.sleep(sleep_time)           
-            #TODO: Sync playback speed with audio time
            
         sd.stop()
         print("\nPlayback finished.")
