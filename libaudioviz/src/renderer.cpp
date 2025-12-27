@@ -115,10 +115,6 @@ void Renderer::render_frame(float* data, size_t size) {
 
     // present to screen- update 
     SDL_RenderPresent(renderer_);
-
-    
-    // this print is for debug for now, later i will remove it 
-    std::cout << "Frame rendered" << std::endl;
 }
 
 
