@@ -39,8 +39,10 @@ stop:
 # === Build & Install ===
 
 deploy:
+	@echo "📦 Installing libaudioviz..."
+	pip install -e libaudioviz
 	@echo "📦 Installing audioviz..."
-	pip install -e .
+	pip install -e audioviz
 	@echo "✅ Deployment complete!"
 
 # === Testing ===

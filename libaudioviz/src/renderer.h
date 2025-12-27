@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include <complex>
+#include <SDL2/SDL.h>
 
 class Renderer {
 public:
@@ -17,4 +17,8 @@ private:
 
     int width_;
     int height_;
+    float center_x_;
+
+    SDL_Window* window_;
+    SDL_Renderer* renderer_;
 };

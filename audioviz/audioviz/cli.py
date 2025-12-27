@@ -4,7 +4,8 @@ import argparse
 import scipy.signal
 import sys
 import numpy as np
-from .audioviz.audio import audio_info, stream_audio
+import time
+from .audio import audio_info, stream_audio
 import libaudioviz
 
 
@@ -59,6 +60,9 @@ def main() -> int:
         
         print(f"  Total frames to render: {len(t)}")
 
+        #calculate frame time
+        time_per_frame = info.duration / len(stft_frames)
+
         # 4. Initialize C++ Renderer
         renderer = libaudioviz.Renderer(800, 600)
         renderer.initialize_window() 
@@ -67,15 +71,28 @@ def main() -> int:
 
         # 5. Render Loop
         for i, frame_data in enumerate(stft_frames):
+            start_time = time.time()
 
             magnitudes = np.abs(frame_data).astype(np.float32)
             # Pass the complex frequency data to C++
             renderer.render_frame(magnitudes)
+
+            #sleep after each render so i will be able to see something
+            #TODO- maybe need to change sleep time for sync
+            processing_time = time.time() - start_time
+            sleep_time = max(0, time_per_frame - processing_time)
+            time.sleep(sleep_time)
+            
+
              #TODO: play audio
             #  TODO : Sync playback speed with audio time
            
-                
-        return 0
+
+        #so the window not close too fast 
+        print("\nPlayback finished.")
+        input("Press Enter to close window...") 
+        return 0       
+        
         
     except FileNotFoundError:
         print(f"Error: File not found: {args.audio_file}", file=sys.stderr)

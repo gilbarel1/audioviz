@@ -12,6 +12,7 @@ RUN apt-get update && \
     gcc g++ make cmake ninja-build git \
     python3 python3-dev python3-pip python3-venv \
     libsndfile1 libsndfile1-dev \
+    libsdl2-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create symbolic link for python3 as python
