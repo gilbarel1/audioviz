@@ -43,9 +43,9 @@ def main() -> int:
         
         audio_samples = samples
         
-        # For stereo, average both channels for visualization
+        # For stereo, use first channel for visualization (stereo viz TODO later)
         if samples.ndim > 1:
-            samples = samples.mean(axis=1)
+            samples = samples[:, 0]
         
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
