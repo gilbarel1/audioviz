@@ -43,9 +43,9 @@ def main() -> int:
         
         audio_samples = samples
         
-        # For stereo, use first channel for visualization
+        # For stereo, average both channels for visualization
         if samples.ndim > 1:
-            samples = samples[:, 0]
+            samples = samples.mean(axis=1)
         
         # Compute STFT
         print(f"\nComputing STFT (window size: {args.nperseg})...")
@@ -63,10 +63,9 @@ def main() -> int:
         
         print(f"  Total frames to render: {len(t)}")
 
-        #calculate frame time
         time_per_frame = info.duration / len(stft_frames)
 
-        # 4. Initialize C++ Renderer
+        # Initialize C++ Renderer
         renderer = libaudioviz.Renderer(800, 600)
         renderer.initialize_window() 
         
@@ -82,16 +81,12 @@ def main() -> int:
             magnitudes = np.abs(frame_data).astype(np.float32)
             # Pass the complex frequency data to C++
             renderer.render_frame(magnitudes)
-
-            #sleep after each render so i will be able to see something
-            #TODO - maybe need to change sleep time for sync
+            
             processing_time = time.time() - start_time
             sleep_time = max(0, time_per_frame - processing_time)
             time.sleep(sleep_time)           
             #TODO: Sync playback speed with audio time
            
-
-        #so the window not close too fast 
         sd.stop()
         print("\nPlayback finished.")
         input("Press Enter to close window...") 
