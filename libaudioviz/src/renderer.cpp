@@ -3,13 +3,10 @@
 #include <algorithm>
 #include <cmath>
 
-// for now, i implemented a dummy class doing basicly nothing but printing bullshit. 
-///update- its not dummy but still prints bullshit
-// for now it works, it the future we will improve presentation to look better
-//try running on gc.wav, it looks cool 
 
 Renderer::Renderer(int width, int height) : width_(width), height_(height), window_(nullptr), renderer_(nullptr) {
     std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
+    center_x_ = width_ / 2.0f; //calculated once 
 }
 
 Renderer::~Renderer() {
@@ -29,7 +26,6 @@ void Renderer::initialize_window() {
         throw std::runtime_error("SDL could not initialize! SDL_Error: " + std::string(SDL_GetError()));
     }
 
-    // create window
     window_ = SDL_CreateWindow(
         "AudioViz Renderer",
         SDL_WINDOWPOS_UNDEFINED,
@@ -40,13 +36,16 @@ void Renderer::initialize_window() {
     );
 
     if (!window_) { 
+        SDL_Quit(); // clean up 
         throw std::runtime_error("Window could not be created! SDL_Error: " + std::string(SDL_GetError()));
     }
 
-    // create renderer
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     
     if (!renderer_) {
+        SDL_DestroyWindow(window_);
+        SDL_Quit(); // clean up 
+        window_ = nullptr;
         throw std::runtime_error("Renderer could not be created! SDL_Error: " + std::string(SDL_GetError()));
     }
 
@@ -57,7 +56,6 @@ void Renderer::initialize_window() {
 //take care of all events in queue-> clean the screen-> present one image
 void Renderer::render_frame(float* data, size_t size) {
     
-    if (!renderer_) return;
 
     // take care of sdl events 
     SDL_Event e;
@@ -65,6 +63,7 @@ void Renderer::render_frame(float* data, size_t size) {
         if (e.type == SDL_QUIT) {
             // for now, for every event, just continue the loop
             // TODO- next step is signal python for sync and take care for real events.
+            //TODO- calculate center again if window resized
             
         }
     }
@@ -76,9 +75,7 @@ void Renderer::render_frame(float* data, size_t size) {
     // draw 
     // We determine the width of each bar based on the window width and number of frequency bins
     if (size > 0) {
-        //screen center
-        float center_x = width_ / 2.0f;
-        
+
         //bar width 
         float bar_width = static_cast<float>(width_) / size;
         if (bar_width < 1.0f) bar_width = 1.0f;
@@ -97,7 +94,7 @@ void Renderer::render_frame(float* data, size_t size) {
 
             //draw right
             SDL_Rect rightRect = {
-                static_cast<int>(center_x + (i * bar_width)),           // x
+                static_cast<int>(center_x_ + (i * bar_width)),           // x
                 static_cast<int>(height_ - bar_height),    // y (from bottom)
                 static_cast<int>(std::ceil(bar_width)),    // width
                 static_cast<int>(bar_height)               // height
@@ -107,7 +104,7 @@ void Renderer::render_frame(float* data, size_t size) {
 
             //draw left
             SDL_Rect leftRect = {
-                static_cast<int>(center_x - ((i + 1) * bar_width)), 
+                static_cast<int>(center_x_ - ((i + 1) * bar_width)), 
                 static_cast<int>(height_ - bar_height),
                 static_cast<int>(std::ceil(bar_width)),
                 static_cast<int>(bar_height)
@@ -123,3 +120,5 @@ void Renderer::render_frame(float* data, size_t size) {
     // this print is for debug for now, later i will remove it 
     std::cout << "Frame rendered" << std::endl;
 }
+
+

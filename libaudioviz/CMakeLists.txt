@@ -18,7 +18,6 @@ set(SOURCES
 # "_libaudioviz" is the name Python will import
 pybind11_add_module(_libaudioviz MODULE ${SOURCES})
 
-# Link libraries: Pybind11 is implicit, but we must add SDL2
 target_link_libraries(_libaudioviz PRIVATE ${SDL2_LIBRARIES})
 
 # Set standard C++ version
