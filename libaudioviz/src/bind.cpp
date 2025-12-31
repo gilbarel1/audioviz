@@ -31,5 +31,6 @@ PYBIND11_MODULE(_libaudioviz, m) {
     py::class_<Renderer>(m, "Renderer")
         .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
         .def("initialize_window", &Renderer::initialize_window, "Open the visualization window")
-        .def("render_frame", &render_frame_wrapper, "Draw the frame based on current data");
+        .def("render_frame", &render_frame_wrapper, "Draw the frame based on current data")
+        .def("set_mode", &Renderer::set_mode, "Set the visual mode (0=Bars, 1=Circle)");
 }
