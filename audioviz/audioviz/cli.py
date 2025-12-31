@@ -7,8 +7,8 @@ import numpy as np
 import time
 import sounddevice as sd
 from .audio import audio_info, stream_audio
+from .state_manager import StateManager
 import libaudioviz
-
 
 def main() -> int:
     """Main entry point."""
@@ -76,6 +76,8 @@ def main() -> int:
         renderer = libaudioviz.Renderer(800, 600)
         renderer.initialize_window() 
         
+        state_manager = StateManager()
+        
         print("Starting playback... (Press Ctrl+C to stop)")
 
         # Start non-blocking audio playback
@@ -84,6 +86,9 @@ def main() -> int:
         # Render Loop
         for frame_channels in stft_channels:
             start_time = time.time()
+
+            if state_manager.update():
+                renderer.set_mode(state_manager.get_current_state())
 
             # For now, visualize first channel only
             magnitudes = np.abs(frame_channels[0]).astype(np.float32)

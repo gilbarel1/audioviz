@@ -53,10 +53,15 @@ void Renderer::initialize_window() {
     std::cout << "Window initialized" << std::endl;
 }
 
+void Renderer::set_mode(int mode) {
+    if (mode >= 0 && mode <= 1) { // Basic validation
+        current_mode_ = mode;
+    }
+}
+
 //take care of all events in queue-> clean the screen-> present one image
 void Renderer::render_frame(float* data, size_t size) {
     
-
     // take care of sdl events 
     SDL_Event e;
     while (SDL_PollEvent(&e) != 0) {
@@ -72,49 +77,93 @@ void Renderer::render_frame(float* data, size_t size) {
     SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
     SDL_RenderClear(renderer_);
 
-    // draw 
-    // We determine the width of each bar based on the window width and number of frequency bins
     if (size > 0) {
-
-        //bar width 
-        float bar_width = static_cast<float>(width_) / size;
-        if (bar_width < 1.0f) bar_width = 1.0f;
-
-        SDL_SetRenderDrawColor(renderer_, 0, 255, 0, 255); // for now, we will present everything in green
-        //TODO- idea- maybe change colors? let user pick color(s)? make it rainbow? idk
-
-        for (size_t i = 0; i < size; ++i) {
-            
-            // scaling and normalization
-            // linear visualization.
-            float magnitude = data[i];
-            float bar_height = std::min(magnitude * 5000.0f, static_cast<float>(height_));
-
-            //trying to draw a mirroring visualization from center
-
-            //draw right
-            SDL_Rect rightRect = {
-                static_cast<int>(center_x_ + (i * bar_width)),           // x
-                static_cast<int>(height_ - bar_height),    // y (from bottom)
-                static_cast<int>(std::ceil(bar_width)),    // width
-                static_cast<int>(bar_height)               // height
-            };
-
-            SDL_RenderFillRect(renderer_, &rightRect);
-
-            //draw left
-            SDL_Rect leftRect = {
-                static_cast<int>(center_x_ - ((i + 1) * bar_width)), 
-                static_cast<int>(height_ - bar_height),
-                static_cast<int>(std::ceil(bar_width)),
-                static_cast<int>(bar_height)
-            };
-            SDL_RenderFillRect(renderer_, &leftRect);
+        if (current_mode_ == BARS) {
+            draw_bars(data, size);
+        } else if (current_mode_ == CIRCLE) {
+            draw_circle(data, size);
         }
     }
 
     // present to screen- update 
     SDL_RenderPresent(renderer_);
+}
+
+void Renderer::draw_bars(float* data, size_t size) {
+    //bar width 
+    float bar_width = static_cast<float>(width_) / size;
+    if (bar_width < 1.0f) bar_width = 1.0f;
+
+    SDL_SetRenderDrawColor(renderer_, 0, 255, 0, 255); // for now, we will present everything in green
+    //TODO- idea- maybe change colors? let user pick color(s)? make it rainbow? idk
+
+    for (size_t i = 0; i < size; ++i) {
+        
+        // scaling and normalization
+        // linear visualization.
+        float magnitude = data[i];
+        float bar_height = std::min(magnitude * 5000.0f, static_cast<float>(height_));
+
+        //trying to draw a mirroring visualization from center
+
+        //draw right
+        SDL_Rect rightRect = {
+            static_cast<int>(center_x_ + (i * bar_width)),           // x
+            static_cast<int>(height_ - bar_height),    // y (from bottom)
+            static_cast<int>(std::ceil(bar_width)),    // width
+            static_cast<int>(bar_height)               // height
+        };
+
+        SDL_RenderFillRect(renderer_, &rightRect);
+
+        //draw left
+        SDL_Rect leftRect = {
+            static_cast<int>(center_x_ - ((i + 1) * bar_width)), 
+            static_cast<int>(height_ - bar_height),
+            static_cast<int>(std::ceil(bar_width)),
+            static_cast<int>(bar_height)
+        };
+        SDL_RenderFillRect(renderer_, &leftRect);
+    }
+}
+
+void Renderer::draw_circle(float* data, size_t size) {
+    int center_y = height_ / 2;
+    float max_radius = std::min(width_, height_) / 2.0f;
+    float base_radius = max_radius * 0.2f; // Inner circle
+    
+    SDL_SetRenderDrawColor(renderer_, 0, 255, 255, 255); // Cyan for circle mode
+
+    float angle_step = 2.0f * M_PI / size;
+
+    for (size_t i = 0; i < size; ++i) {
+        float magnitude = data[i];
+        float line_len = std::min(magnitude * 3000.0f, max_radius - base_radius);
+        
+        float angle = i * angle_step;
+        
+        // Start point (on base circle)
+        int x1 = static_cast<int>(center_x_ + std::cos(angle) * base_radius);
+        int y1 = static_cast<int>(center_y + std::sin(angle) * base_radius);
+        
+        // End point
+        int x2 = static_cast<int>(center_x_ + std::cos(angle) * (base_radius + line_len));
+        int y2 = static_cast<int>(center_y + std::sin(angle) * (base_radius + line_len));
+        
+        SDL_RenderDrawLine(renderer_, x1, y1, x2, y2);
+        
+        // Mirror for full circle if data is only half spectrum? 
+        
+        float angle_mirror = -angle;
+         // Start point (mirror)
+        int x1m = static_cast<int>(center_x_ + std::cos(angle_mirror) * base_radius);
+        int y1m = static_cast<int>(center_y + std::sin(angle_mirror) * base_radius);
+        
+        // End point (mirror)
+        int x2m = static_cast<int>(center_x_ + std::cos(angle_mirror) * (base_radius + line_len));
+        int y2m = static_cast<int>(center_y + std::sin(angle_mirror) * (base_radius + line_len));
+         SDL_RenderDrawLine(renderer_, x1m, y1m, x2m, y2m);
+    }
 }
 
 
