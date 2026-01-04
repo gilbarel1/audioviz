@@ -4,18 +4,9 @@ project(libaudioviz LANGUAGES CXX)
 # Find Pybind11 (It will be installed automatically by pyproject.toml)
 find_package(pybind11 CONFIG REQUIRED)
 
-# Fetch SDL2 via FetchContent for portability
-include(FetchContent)
-FetchContent_Declare(
-    SDL2
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG release-2.30.0  # Pin to a stable version
-    GIT_SHALLOW TRUE
-)
-set(SDL_SHARED OFF CACHE BOOL "Build SDL2 as a shared library" FORCE)
-set(SDL_STATIC ON CACHE BOOL "Build SDL2 as a static library" FORCE)
-set(SDL_TEST OFF CACHE BOOL "Build SDL2 test" FORCE)
-FetchContent_MakeAvailable(SDL2)
+# Find SDL2
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIRS})
 
 # Define the source files
 set(SOURCES
