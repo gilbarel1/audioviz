@@ -1,15 +1,29 @@
-from enum import Enum, auto
+from enum import Enum
 import time
+from dataclasses import dataclass
 
-class VisualState(Enum):
+class VisualMode(Enum):
     BARS = 0
     CIRCLE = 1
     SPIRAL = 2
     RAIN = 3
 
+@dataclass(frozen=True)
+class VisualizationState:
+    """Immutable representation of the current visualization state."""
+    mode: VisualMode
+    
+    @property
+    def mode_id(self) -> int:
+        return self.mode.value
+        
+    @property
+    def name(self) -> str:
+        return self.mode.name
+
 class StateManager:
     """
-    Manages the state of the visualization.
+    Manages the transitions and current state of the visualization.
     """
     
     def __init__(self, switch_interval: float = 5.0):
@@ -19,7 +33,7 @@ class StateManager:
         Args:
             switch_interval: Time in seconds between state switches.
         """
-        self.current_state = VisualState.BARS
+        self._current_mode = VisualMode.BARS
         self.switch_interval = switch_interval
         self.last_switch_time = time.time()
         
@@ -38,29 +52,14 @@ class StateManager:
         return False
         
     def _next_state(self):
-        """Switch to the next available state."""
-        # Get all enum members as a list
-        members = list(VisualState)
-        # Find current index
-        try:
-            current_index = members.index(self.current_state)
-        except ValueError:
-             current_index = 0
-             self.current_state = members[0]
+        """Internal logic to cycle through available modes."""
+        modes = list(VisualMode)
+        current_index = modes.index(self._current_mode)
+        next_index = (current_index + 1) % len(modes)
+        self._current_mode = modes[next_index]
+        print(f"Switched to state: {self._current_mode.name}")
+        
+    def get_current_state(self) -> VisualizationState:
+        """Get the current immutable state object."""
+        return VisualizationState(mode=self._current_mode)
 
-        # Cycle to next logic
-        next_index = (current_index + 1) % len(members)
-        self.current_state = members[next_index]
-        print(f"Switched to state: {self.current_state.name}")
-        
-    def get_current_state(self) -> int:
-        """Get the current state ID (integer for C++ compatibility)."""
-        # Return 0-based index corresponding to the Enum member
-        return list(VisualState).index(self.current_state)
-        
-    def get_state_name(self, state_id: int) -> str:
-        """Get human-readable name for a state ID."""
-        try:
-            return list(VisualState)[state_id].name
-        except IndexError:
-            return "UNKNOWN"
