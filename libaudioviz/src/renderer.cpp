@@ -54,7 +54,7 @@ void Renderer::initialize_window() {
 }
 
 void Renderer::set_mode(int mode) {
-    if (mode >= 0 && mode <= 1) { // Basic validation
+    if (mode >= 0 && mode <= VisualizationState::modes.size()) { // Len of visual modes
         current_mode_ = mode;
     }
 }

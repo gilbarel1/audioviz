@@ -5,8 +5,7 @@ from dataclasses import dataclass
 class VisualMode(Enum):
     BARS = 0
     CIRCLE = 1
-    SPIRAL = 2
-    RAIN = 3
+
 
 @dataclass(frozen=True)
 class VisualizationState:
