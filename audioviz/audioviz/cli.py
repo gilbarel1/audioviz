@@ -87,9 +87,9 @@ def main() -> int:
         for frame_channels in stft_channels:
             start_time = time.time()
 
-            if state_manager.update():
-                state = state_manager.get_current_state()
-                renderer.set_mode(state.mode_id)
+            # Access current_state every frame; it handles timing/transitions internally
+            state = state_manager.current_state
+            renderer.set_mode(state.mode_id)
 
             # For now, visualize first channel only
             magnitudes = np.abs(frame_channels[0]).astype(np.float32)
