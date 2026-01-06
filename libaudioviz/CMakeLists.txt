@@ -18,7 +18,20 @@ set(SOURCES
 # "_libaudioviz" is the name Python will import
 pybind11_add_module(_libaudioviz MODULE ${SOURCES})
 
-target_link_libraries(_libaudioviz PRIVATE ${SDL2_LIBRARIES})
+# Link against SDL2-static (created by FetchContent)
+if(TARGET SDL2::SDL2-static)
+    target_link_libraries(_libaudioviz PRIVATE SDL2::SDL2-static)
+elseif(TARGET SDL2-static)
+    target_link_libraries(_libaudioviz PRIVATE SDL2-static)
+else()
+     # Fallback or shared
+    target_link_libraries(_libaudioviz PRIVATE SDL2::SDL2)
+endif()
+
+# On Windows we need to link these system libraries when using static SDL2
+if(WIN32)
+    target_link_libraries(_libaudioviz PRIVATE user32 gdi32 winmm imm32 ole32 oleaut32 version uuid advapi32 setupapi shell32)
+endif()
 
 # Set standard C++ version
 target_compile_features(_libaudioviz PRIVATE cxx_std_17)

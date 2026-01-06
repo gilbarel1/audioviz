@@ -1,12 +1,9 @@
 #include "renderer.h"
 #include <iostream>
 #include <algorithm>
-#include <cmath>
 
-
-Renderer::Renderer(int width, int height) : width_(width), height_(height), window_(nullptr), renderer_(nullptr) {
+Renderer::Renderer(int width, int height) : width_(width), height_(height) {
     std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
-    center_x_ = width_ / 2.0f; //calculated once 
 }
 
 Renderer::~Renderer() {
@@ -21,7 +18,6 @@ Renderer::~Renderer() {
 }
 
 void Renderer::initialize_window() {
-
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         throw std::runtime_error("SDL could not initialize! SDL_Error: " + std::string(SDL_GetError()));
     }
@@ -32,89 +28,98 @@ void Renderer::initialize_window() {
         SDL_WINDOWPOS_UNDEFINED,
         width_,
         height_,
-        SDL_WINDOW_SHOWN
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
     );
 
-    if (!window_) { 
-        SDL_Quit(); // clean up 
+    if (!window_) {
+        SDL_Quit();
         throw std::runtime_error("Window could not be created! SDL_Error: " + std::string(SDL_GetError()));
     }
 
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    
+
     if (!renderer_) {
         SDL_DestroyWindow(window_);
-        SDL_Quit(); // clean up 
+        SDL_Quit();
         window_ = nullptr;
         throw std::runtime_error("Renderer could not be created! SDL_Error: " + std::string(SDL_GetError()));
     }
+    
+    // Ensure logical size matches window size initially
+    SDL_RenderSetLogicalSize(renderer_, width_, height_);
 
-    // this print is for debug for now, later i will remove it 
     std::cout << "Window initialized" << std::endl;
 }
 
-//take care of all events in queue-> clean the screen-> present one image
-void Renderer::render_frame(float* data, size_t size) {
-    
-
-    // take care of sdl events 
-    SDL_Event e;
-    while (SDL_PollEvent(&e) != 0) {
-        if (e.type == SDL_QUIT) {
-            // for now, for every event, just continue the loop
-            // TODO- next step is signal python for sync and take care for real events.
-            //TODO- calculate center again if window resized
-            
-        }
-    }
-
-    // clean the screen
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
+void Renderer::clear(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
+    SDL_SetRenderDrawColor(renderer_, r, g, b, a);
     SDL_RenderClear(renderer_);
+}
 
-    // draw 
-    // We determine the width of each bar based on the window width and number of frequency bins
-    if (size > 0) {
-
-        //bar width 
-        float bar_width = static_cast<float>(width_) / size;
-        if (bar_width < 1.0f) bar_width = 1.0f;
-
-        SDL_SetRenderDrawColor(renderer_, 0, 255, 0, 255); // for now, we will present everything in green
-        //TODO- idea- maybe change colors? let user pick color(s)? make it rainbow? idk
-
-        for (size_t i = 0; i < size; ++i) {
-            
-            // scaling and normalization
-            // linear visualization.
-            float magnitude = data[i];
-            float bar_height = std::min(magnitude * 5000.0f, static_cast<float>(height_));
-
-            //trying to draw a mirroring visualization from center
-
-            //draw right
-            SDL_Rect rightRect = {
-                static_cast<int>(center_x_ + (i * bar_width)),           // x
-                static_cast<int>(height_ - bar_height),    // y (from bottom)
-                static_cast<int>(std::ceil(bar_width)),    // width
-                static_cast<int>(bar_height)               // height
-            };
-
-            SDL_RenderFillRect(renderer_, &rightRect);
-
-            //draw left
-            SDL_Rect leftRect = {
-                static_cast<int>(center_x_ - ((i + 1) * bar_width)), 
-                static_cast<int>(height_ - bar_height),
-                static_cast<int>(std::ceil(bar_width)),
-                static_cast<int>(bar_height)
-            };
-            SDL_RenderFillRect(renderer_, &leftRect);
-        }
-    }
-
-    // present to screen- update 
+void Renderer::present() {
+    if (!renderer_) return;
     SDL_RenderPresent(renderer_);
 }
 
+void Renderer::draw_rectangles(const std::vector<Renderer::Rect>& rects,
+                                uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
+    SDL_SetRenderDrawColor(renderer_, r, g, b, a);
+    
+    for (const auto& rect : rects) {
+        SDL_Rect sdl_rect = {
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h
+        };
+        SDL_RenderFillRect(renderer_, &sdl_rect);
+    }
+}
 
+void Renderer::draw_lines(const std::vector<Renderer::Line>& lines,
+                          uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
+    SDL_SetRenderDrawColor(renderer_, r, g, b, a);
+    
+    for (const auto& line : lines) {
+        SDL_RenderDrawLine(
+            renderer_,
+            line.x1,
+            line.y1,
+            line.x2,
+            line.y2
+        );
+    }
+}
+
+std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
+    std::vector<std::tuple<std::string, int, int>> events;
+    SDL_Event e;
+    
+    while (SDL_PollEvent(&e) != 0) {
+        if (e.type == SDL_QUIT) {
+            should_quit_ = true;
+            events.push_back({"quit", 0, 0});
+        }
+        else if (e.type == SDL_KEYDOWN) {
+            events.push_back({"keydown", e.key.keysym.sym, 0});
+        }
+        else if (e.type == SDL_KEYUP) {
+            events.push_back({"keyup", e.key.keysym.sym, 0});
+        }
+        else if (e.type == SDL_WINDOWEVENT) {
+            if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
+                width_ = e.window.data1;
+                height_ = e.window.data2;
+                if (renderer_) {
+                     SDL_RenderSetLogicalSize(renderer_, width_, height_);
+                }
+                events.push_back({"resize", width_, height_});
+            }
+        }
+    }
+    
+    return events;
+}
