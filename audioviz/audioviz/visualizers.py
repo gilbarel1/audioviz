@@ -10,7 +10,7 @@ import math
 
 from .primitives import (
     Rect, Line, DrawBatch, FrameCommands, Color,
-    GREEN, CYAN, BLACK
+    GREEN, CYAN
 )
 
 
@@ -25,12 +25,15 @@ class Visualizer(Protocol):
         ...
 
 
+BAR_SCALE = 5000.0
+
+
 def bars_visualizer(
     magnitudes: np.ndarray, 
     width: int, 
     height: int,
     color: Color = GREEN,
-    scale: float = 5000.0,
+    scale: float = BAR_SCALE,
     mirror: bool = True,
 ) -> FrameCommands:
     """
@@ -66,12 +69,24 @@ def bars_visualizer(
                 height=bar_height
             ))
             # Left side (mirror)
-            rects.append(Rect(
-                x=center_x - (i + 1) * bar_width,
-                y=y,
-                width=bar_width,
-                height=bar_height
-            ))
+            left_x = center_x - (i + 1) * bar_width
+            if left_x >= 0:
+                rects.append(Rect(
+                    x=left_x,
+                    y=y,
+                    width=bar_width,
+                    height=bar_height
+                ))
+            else:
+                # Trim valid width if partially off-screen
+                adjusted_width = bar_width + left_x # left_x is negative
+                if adjusted_width > 0:
+                    rects.append(Rect(
+                        x=0,
+                        y=y,
+                        width=adjusted_width,
+                        height=bar_height
+                    ))
     else:
         bar_width = max(1, width // size)
         for i, mag in enumerate(magnitudes):
@@ -87,13 +102,17 @@ def bars_visualizer(
     return FrameCommands.single_batch(batch)
 
 
+CIRCLE_SCALE = 3000.0
+BASE_RADIUS_RATIO = 0.2
+
+
 def circle_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
     color: Color = CYAN,
-    scale: float = 3000.0,
-    base_radius_ratio: float = 0.2,
+    scale: float = CIRCLE_SCALE,
+    base_radius_ratio: float = BASE_RADIUS_RATIO,
     mirror: bool = True,
 ) -> FrameCommands:
     """
@@ -135,13 +154,17 @@ def circle_visualizer(
         lines.append(Line(x1, y1, x2, y2))
         
         if mirror:
-            # Mirror across horizontal axis
-            angle_mirror = -angle
-            x1m = int(center_x + math.cos(angle_mirror) * base_radius)
-            y1m = int(center_y + math.sin(angle_mirror) * base_radius)
-            x2m = int(center_x + math.cos(angle_mirror) * (base_radius + line_len))
-            y2m = int(center_y + math.sin(angle_mirror) * (base_radius + line_len))
-            lines.append(Line(x1m, y1m, x2m, y2m))
+            is_zero_angle = (i == 0)
+            is_pi_angle = (size % 2 == 0 and i == size // 2)
+            
+            if not(is_zero_angle or is_pi_angle):
+                # Mirror across horizontal axis
+                angle_mirror = -angle
+                x1m = int(center_x + math.cos(angle_mirror) * base_radius)
+                y1m = int(center_y + math.sin(angle_mirror) * base_radius)
+                x2m = int(center_x + math.cos(angle_mirror) * (base_radius + line_len))
+                y2m = int(center_y + math.sin(angle_mirror) * (base_radius + line_len))
+                lines.append(Line(x1m, y1m, x2m, y2m))
     
     batch = DrawBatch.from_lines(lines, color)
     return FrameCommands.single_batch(batch)

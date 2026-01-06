@@ -32,9 +32,12 @@ class Rect:
     width: int
     height: int
     
-    def as_tuple(self) -> tuple[int, int, int, int]:
-        return (self.x, self.y, self.width, self.height)
-
+    def __post_init__(self):
+        if self.width < 0:
+            raise ValueError(f"Width must be non-negative, got {self.width}")
+        if self.height < 0:
+            raise ValueError(f"Height must be non-negative, got {self.height}")
+    
 
 @dataclass(frozen=True, slots=True)
 class Line:
@@ -44,8 +47,6 @@ class Line:
     x2: int
     y2: int
     
-    def as_tuple(self) -> tuple[int, int, int, int]:
-        return (self.x1, self.y1, self.x2, self.y2)
 
 
 @dataclass(frozen=True, slots=True)

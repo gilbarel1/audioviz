@@ -44,45 +44,52 @@ void Renderer::initialize_window() {
         window_ = nullptr;
         throw std::runtime_error("Renderer could not be created! SDL_Error: " + std::string(SDL_GetError()));
     }
+    
+    // Ensure logical size matches window size initially
+    SDL_RenderSetLogicalSize(renderer_, width_, height_);
 
     std::cout << "Window initialized" << std::endl;
 }
 
 void Renderer::clear(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
     SDL_SetRenderDrawColor(renderer_, r, g, b, a);
     SDL_RenderClear(renderer_);
 }
 
 void Renderer::present() {
+    if (!renderer_) return;
     SDL_RenderPresent(renderer_);
 }
 
-void Renderer::draw_rectangles(const std::vector<std::tuple<int, int, int, int>>& rects,
+void Renderer::draw_rectangles(const std::vector<Renderer::Rect>& rects,
                                 uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
     SDL_SetRenderDrawColor(renderer_, r, g, b, a);
     
     for (const auto& rect : rects) {
         SDL_Rect sdl_rect = {
-            std::get<0>(rect),  // x
-            std::get<1>(rect),  // y
-            std::get<2>(rect),  // width
-            std::get<3>(rect)   // height
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h
         };
         SDL_RenderFillRect(renderer_, &sdl_rect);
     }
 }
 
-void Renderer::draw_lines(const std::vector<std::tuple<int, int, int, int>>& lines,
+void Renderer::draw_lines(const std::vector<Renderer::Line>& lines,
                           uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_) return;
     SDL_SetRenderDrawColor(renderer_, r, g, b, a);
     
     for (const auto& line : lines) {
         SDL_RenderDrawLine(
             renderer_,
-            std::get<0>(line),  // x1
-            std::get<1>(line),  // y1
-            std::get<2>(line),  // x2
-            std::get<3>(line)   // y2
+            line.x1,
+            line.y1,
+            line.x2,
+            line.y2
         );
     }
 }
@@ -106,6 +113,9 @@ std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
             if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
                 width_ = e.window.data1;
                 height_ = e.window.data2;
+                if (renderer_) {
+                     SDL_RenderSetLogicalSize(renderer_, width_, height_);
+                }
                 events.push_back({"resize", width_, height_});
             }
         }

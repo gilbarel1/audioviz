@@ -11,6 +11,14 @@
  */
 class Renderer {
 public:
+    struct Rect {
+        int x, y, w, h;
+    };
+
+    struct Line {
+        int x1, y1, x2, y2;
+    };
+
     Renderer(int width, int height);
     ~Renderer();
 
@@ -24,10 +32,10 @@ public:
     void present();
 
     // Primitive drawing - batched for efficiency
-    void draw_rectangles(const std::vector<std::tuple<int, int, int, int>>& rects,
+    void draw_rectangles(const std::vector<Rect>& rects,
                          uint8_t r, uint8_t g, uint8_t b, uint8_t a);
     
-    void draw_lines(const std::vector<std::tuple<int, int, int, int>>& lines,
+    void draw_lines(const std::vector<Line>& lines,
                     uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
     // Event handling

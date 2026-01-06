@@ -11,6 +11,20 @@ namespace py = pybind11;
 PYBIND11_MODULE(_libaudioviz, m) {
     m.doc() = "C++ Audioviz Renderer Extension - Primitive Drawing Layer";
 
+    py::class_<Renderer::Rect>(m, "Rect")
+        .def(py::init<int, int, int, int>(), py::arg("x"), py::arg("y"), py::arg("w"), py::arg("h"))
+        .def_readwrite("x", &Renderer::Rect::x)
+        .def_readwrite("y", &Renderer::Rect::y)
+        .def_readwrite("w", &Renderer::Rect::w)
+        .def_readwrite("h", &Renderer::Rect::h);
+
+    py::class_<Renderer::Line>(m, "Line")
+        .def(py::init<int, int, int, int>(), py::arg("x1"), py::arg("y1"), py::arg("x2"), py::arg("y2"))
+        .def_readwrite("x1", &Renderer::Line::x1)
+        .def_readwrite("y1", &Renderer::Line::y1)
+        .def_readwrite("x2", &Renderer::Line::x2)
+        .def_readwrite("y2", &Renderer::Line::y2);
+
     py::class_<Renderer>(m, "Renderer")
         .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
         
@@ -28,7 +42,7 @@ PYBIND11_MODULE(_libaudioviz, m) {
         // Primitive drawing
         .def("draw_rectangles", &Renderer::draw_rectangles,
              py::arg("rects"), py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
-             "Draw batch of filled rectangles. Each rect is (x, y, width, height)")
+             "Draw batch of filled rectangles. Each rect is (x, y, w, h)")
         .def("draw_lines", &Renderer::draw_lines,
              py::arg("lines"), py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
              "Draw batch of lines. Each line is (x1, y1, x2, y2)")
