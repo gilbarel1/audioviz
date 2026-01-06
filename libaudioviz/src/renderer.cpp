@@ -106,6 +106,9 @@ std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
         else if (e.type == SDL_KEYDOWN) {
             events.push_back({"keydown", e.key.keysym.sym, 0});
         }
+        else if (e.type == SDL_MOUSEBUTTONDOWN) {
+            events.push_back({"mousedown", e.button.button, 0});
+        }
         else if (e.type == SDL_KEYUP) {
             events.push_back({"keyup", e.key.keysym.sym, 0});
         }

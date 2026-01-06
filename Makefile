@@ -38,7 +38,7 @@ stop:
 
 # === Build & Install ===
 
-deploy:
+deploy: clean-build
 	@echo "📦 Installing libaudioviz..."
 	pip install -e libaudioviz
 	@echo "📦 Installing audioviz..."
@@ -53,10 +53,18 @@ test:
 
 # === Utility ===
 
+clean-build:
+	@echo "🧹 Cleaning build artifacts..."
+	rm -rf libaudioviz/build
+	rm -rf libaudioviz/*.egg-info
+	rm -rf libaudioviz/libaudioviz/*.so libaudioviz/libaudioviz/*.pyd
+	rm -rf audioviz/*.egg-info
+	rm -rf audioviz.egg-info
+
 clean:
 	rm -rf __pycache__ .pytest_cache
-	rm -rf audioviz.egg-info
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
 
 help:
 	@echo ""
