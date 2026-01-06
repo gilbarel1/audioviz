@@ -27,38 +27,25 @@ def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands) -> Non
     bg = commands.background
     renderer.clear(bg.r, bg.g, bg.b, bg.a)
     
-    # Check if we are running with the new C++ binary (has Rect/Line) or the old one
-    use_structs = hasattr(libaudioviz, 'Rect')
-
     # Draw each batch
     for batch in commands.batches:
         r, g, b, a = batch.color.as_tuple()
         
         if batch.rectangles:
-            if use_structs:
-                # Convert Python Rect objects to C++ Rect objects
-                cpp_rects = [
-                    libaudioviz.Rect(rect.x, rect.y, rect.width, rect.height) 
-                    for rect in batch.rectangles
-                ]
-                renderer.draw_rectangles(cpp_rects, r, g, b, a)
-            else:
-                # Fallback for old binary: pass tuples
-                rect_tuples = [(rect.x, rect.y, rect.width, rect.height) for rect in batch.rectangles]
-                renderer.draw_rectangles(rect_tuples, r, g, b, a)
+            # Convert Python Rect objects to C++ Rect objects
+            cpp_rects = [
+                libaudioviz.Rect(rect.x, rect.y, rect.width, rect.height) 
+                for rect in batch.rectangles
+            ]
+            renderer.draw_rectangles(cpp_rects, r, g, b, a)
         
         if batch.lines:
-            if use_structs:
-                # Convert Python Line objects to C++ Line objects
-                cpp_lines = [
-                    libaudioviz.Line(line.x1, line.y1, line.x2, line.y2) 
-                    for line in batch.lines
-                ]
-                renderer.draw_lines(cpp_lines, r, g, b, a)
-            else:
-                # Fallback for old binary: pass tuples
-                line_tuples = [(line.x1, line.y1, line.x2, line.y2) for line in batch.lines]
-                renderer.draw_lines(line_tuples, r, g, b, a)
+            # Convert Python Line objects to C++ Line objects
+            cpp_lines = [
+                libaudioviz.Line(line.x1, line.y1, line.x2, line.y2) 
+                for line in batch.lines
+            ]
+            renderer.draw_lines(cpp_lines, r, g, b, a)
     
     # Present to screen
     renderer.present()
