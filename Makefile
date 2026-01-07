@@ -58,6 +58,14 @@ clean:
 	rm -rf audioviz.egg-info
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
+clean-build:
+	@echo "🧹 Cleaning build artifacts..."
+	rm -rf libaudioviz/build
+	rm -rf libaudioviz/*.egg-info
+	rm -rf libaudioviz/libaudioviz/*.so libaudioviz/libaudioviz/*.pyd
+	rm -rf audioviz/*.egg-info
+	rm -rf audioviz.egg-info
+
 help:
 	@echo ""
 	@echo "🎵 AudioViz - Music Visualizer"
@@ -71,5 +79,6 @@ help:
 	@echo "  deploy           - Install audioviz in editable mode"
 	@echo "  test             - Run all tests"
 	@echo "  clean            - Remove build artifacts"
+	@echo "  clean-build      - Remove build artifacts and compiled files"
 
-.PHONY: build-container run attach stop deploy test clean help
+.PHONY: build-container run attach stop deploy test clean help clean-build

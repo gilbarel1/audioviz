@@ -25,7 +25,9 @@ class Visualizer(Protocol):
         ...
 
 
-BAR_SCALE = 5000.0
+BAR_SCALE = 0.9  # Scale factor for normalized log magnitudes (0-1 range)
+BAR_DB_FLOOR = -60.0  # Fixed floor in dB (quietest visible level)
+BAR_DB_CEILING = -10.0  # Fixed ceiling in dB (loudest expected level)
 
 
 def bars_visualizer(
@@ -35,6 +37,9 @@ def bars_visualizer(
     color: Color = GREEN,
     scale: float = BAR_SCALE,
     mirror: bool = True,
+    log_scale: bool = True,
+    db_floor: float = BAR_DB_FLOOR,
+    db_ceiling: float = BAR_DB_CEILING,
 ) -> FrameCommands:
     """
     Classic bar visualization - vertical bars representing frequency magnitudes.
@@ -44,12 +49,30 @@ def bars_visualizer(
         width: Window width in pixels
         height: Window height in pixels
         color: Bar color
-        scale: Magnitude scaling factor
+        scale: Magnitude scaling factor (multiplier for normalized values)
         mirror: If True, draw mirrored bars from center
+        log_scale: If True, use logarithmic (dB) scaling for more balanced display
+        db_floor: Fixed floor in dB (values below this show as 0 height)
+        db_ceiling: Fixed ceiling in dB (values above this clip to max height)
     """
     size = len(magnitudes)
     if size == 0:
         return FrameCommands.single_batch(DrawBatch.empty(color))
+    
+    # Apply logarithmic scaling to compress dynamic range
+    if log_scale:
+        eps = 1e-10
+        db_values = 20.0 * np.log10(magnitudes + eps)
+        
+        # Normalize using fixed floor/ceiling so bars move with actual loudness
+        db_range = db_ceiling - db_floor
+        normalized = (db_values - db_floor) / db_range
+        normalized = np.clip(normalized, 0.0, 1.0)
+        processed_mags = normalized
+    else:
+        # Linear scaling fallback - normalize to a fixed max
+        fixed_max = 0.1
+        processed_mags = np.clip(magnitudes / fixed_max, 0.0, 1.0)
     
     rects: list[Rect] = []
     
@@ -57,8 +80,8 @@ def bars_visualizer(
         bar_width = max(1, width // (size * 2))
         center_x = width // 2
         
-        for i, mag in enumerate(magnitudes):
-            bar_height = min(int(mag * scale), height)
+        for i, mag in enumerate(processed_mags):
+            bar_height = min(int(mag * scale * height), height)
             y = height - bar_height
             
             # Right side
@@ -89,8 +112,8 @@ def bars_visualizer(
                     ))
     else:
         bar_width = max(1, width // size)
-        for i, mag in enumerate(magnitudes):
-            bar_height = min(int(mag * scale), height)
+        for i, mag in enumerate(processed_mags):
+            bar_height = min(int(mag * scale * height), height)
             rects.append(Rect(
                 x=i * bar_width,
                 y=height - bar_height,

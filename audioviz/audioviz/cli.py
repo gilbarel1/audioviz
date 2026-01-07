@@ -125,7 +125,7 @@ def main() -> int:
         time_per_frame = info.duration / len(stft_channels)
         
         # Initialize C++ Renderer
-        width, height = 800, 600
+        width, height = 1200, 800
         renderer = libaudioviz.Renderer(width, height)
         renderer.initialize_window()
         
@@ -143,11 +143,14 @@ def main() -> int:
         
         # Start non-blocking audio playback
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
+        playback_start = time.time()
         
         # Main render loop
-        frame_idx = 0
-        while frame_idx < len(stft_channels):
-            start_time = time.time()
+        while True:
+            elapsed = time.time() - playback_start
+            frame_idx = int(elapsed / time_per_frame)
+            if frame_idx >= len(stft_channels):
+                break
             
             # Poll events and update state
             events = renderer.poll_events()
@@ -166,13 +169,6 @@ def main() -> int:
             
             # Render the frame
             render_frame(renderer, commands)
-            
-            # Frame timing
-            processing_time = time.time() - start_time
-            sleep_time = max(0, time_per_frame - processing_time)
-            time.sleep(sleep_time)
-            
-            frame_idx += 1
         
         sd.stop()
         print("\nPlayback finished.")

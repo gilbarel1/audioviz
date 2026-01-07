@@ -115,12 +115,14 @@ class StateManager:
             elif event_type == "keydown":
                 # Space bar to switch modes manually
                 if data1 == 32:  # SDLK_SPACE
-                    self._switch_mode() # Side effect: resets timer
-                    # Re-fetch state as it might have changed mode
+                    self._switch_mode()
                     new_state = new_state.with_mode(self._state.mode)
-                # Escape to quit
                 elif data1 == 27:  # SDLK_ESCAPE
                     return new_state.stopped()
+            elif event_type == "mousedown":
+                if data1 == 1:  # SDL_BUTTON_RIGHT
+                    self._switch_mode()
+                    new_state = new_state.with_mode(self._state.mode)
         return new_state
     
     def _switch_mode(self) -> None:
