@@ -3,16 +3,23 @@
 #include <algorithm>
 
 Renderer::Renderer(int width, int height) : width_(width), height_(height) {
+    if (TTF_Init() == -1) {
+        throw std::runtime_error("SDL_ttf could not initialize! TTF_Error: " + std::string(TTF_GetError()));
+    }
     std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
 }
 
 Renderer::~Renderer() {
+    if (font_) {
+        TTF_CloseFont(font_);
+    }
     if (renderer_) {
         SDL_DestroyRenderer(renderer_);
     }
     if (window_) {
         SDL_DestroyWindow(window_);
     }
+    TTF_Quit();
     SDL_Quit();
     std::cout << "Renderer destroyed" << std::endl;
 }
@@ -47,6 +54,23 @@ void Renderer::initialize_window() {
     
     // Ensure logical size matches window size initially
     SDL_RenderSetLogicalSize(renderer_, width_, height_);
+    
+    // Load font - try common system font paths
+    const char* font_paths[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        nullptr
+    };
+    
+    for (int i = 0; font_paths[i] != nullptr; i++) {
+        font_ = TTF_OpenFont(font_paths[i], 16);
+        if (font_) break;
+    }
+    
+    if (!font_) {
+        std::cerr << "Warning: Could not load font, text will not render" << std::endl;
+    }
 
     std::cout << "Window initialized" << std::endl;
 }
@@ -94,6 +118,27 @@ void Renderer::draw_lines(const std::vector<Renderer::Line>& lines,
     }
 }
 
+void Renderer::draw_text(const std::string& text, int x, int y,
+                         uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_ || !font_ || text.empty()) return;
+    
+    SDL_Color color = {r, g, b, a};
+    SDL_Surface* surface = TTF_RenderText_Blended(font_, text.c_str(), color);
+    if (!surface) return;
+    
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer_, surface);
+    if (!texture) {
+        SDL_FreeSurface(surface);
+        return;
+    }
+    
+    SDL_Rect dest = {x, y, surface->w, surface->h};
+    SDL_RenderCopy(renderer_, texture, nullptr, &dest);
+    
+    SDL_DestroyTexture(texture);
+    SDL_FreeSurface(surface);
+}
+
 std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
     std::vector<std::tuple<std::string, int, int>> events;
     SDL_Event e;
@@ -107,7 +152,7 @@ std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
             events.push_back({"keydown", e.key.keysym.sym, 0});
         }
         else if (e.type == SDL_MOUSEBUTTONDOWN) {
-            events.push_back({"mousedown", e.button.button, 0});
+            events.push_back({"mousedown", e.button.x, e.button.y});
         }
         else if (e.type == SDL_KEYUP) {
             events.push_back({"keyup", e.key.keysym.sym, 0});

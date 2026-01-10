@@ -6,9 +6,12 @@ It provides an immutable state object that drives the render loop.
 
 from dataclasses import dataclass
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .visualizers import next_mode
+
+if TYPE_CHECKING:
+    from .ui import ButtonPanel
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +78,11 @@ class StateManager:
         )
         self.auto_switch_interval = config.auto_switch_interval
         self._last_switch_time = time.time()
+        self._button_panel: Optional["ButtonPanel"] = None
+    
+    def set_button_panel(self, panel: "ButtonPanel") -> None:
+        """Set the button panel for click handling."""
+        self._button_panel = panel
     
     @property
     def state(self) -> VisualizationState:
@@ -120,9 +128,14 @@ class StateManager:
                 elif data1 == 27:  # SDLK_ESCAPE
                     return new_state.stopped()
             elif event_type == "mousedown":
-                if data1 == 1:  # SDL_BUTTON_RIGHT
-                    self._switch_mode()
-                    new_state = new_state.with_mode(self._state.mode)
+                # data1 = x, data2 = y
+                if self._button_panel:
+                    clicked_mode = self._button_panel.hit_test(data1, data2)
+                    if clicked_mode and clicked_mode != self._state.mode:
+                        self._state = self._state.with_mode(clicked_mode)
+                        self._last_switch_time = time.time()
+                        print(f"Switched to mode: {clicked_mode}")
+                        new_state = new_state.with_mode(clicked_mode)
         return new_state
     
     def _switch_mode(self) -> None:
