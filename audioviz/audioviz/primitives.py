@@ -22,6 +22,10 @@ GREEN = Color(0, 255, 0)
 CYAN = Color(0, 255, 255)
 MAGENTA = Color(255, 0, 255)
 ORANGE = Color(255, 165, 0)
+YELLOW = Color(255, 255, 0)
+PURPLE = Color(148, 0, 211)
+RED = Color(255, 50, 50)
+BLUE = Color(50, 100, 255)
 
 
 @dataclass(frozen=True, slots=True)

@@ -10,18 +10,21 @@ import sounddevice as sd
 from .audio import audio_info, stream_audio
 from .state_manager import StateManager, StateManagerConfig
 from .visualizers import get_visualizer
-from .primitives import FrameCommands
+from .primitives import FrameCommands, DrawBatch
+from .ui import create_button_panel
 
 import libaudioviz
 
 
-def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands) -> None:
+def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands, 
+                 labels: list[tuple[str, int, int]] = None) -> None:
     """
     Send draw commands to the C++ renderer.
     
     Args:
         renderer: The C++ renderer instance
         commands: Frame commands containing background color and draw batches
+        labels: Optional list of (text, x, y) for text rendering
     """
     # Clear with background color
     bg = commands.background
@@ -46,6 +49,11 @@ def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands) -> Non
                 for line in batch.lines
             ]
             renderer.draw_lines(cpp_lines, r, g, b, a)
+    
+    # Draw text labels (white text)
+    if labels:
+        for text, x, y in labels:
+            renderer.draw_text(text, x, y, 255, 255, 255, 255)
     
     # Present to screen
     renderer.present()
@@ -77,7 +85,7 @@ def main() -> int:
         '--mode',
         type=str,
         default='bars',
-        choices=['bars', 'circle'],
+        choices=['bars', 'circle', 'waveform', 'spectrum', 'particles', 'symmetry', 'pulse'],
         help='Initial visualization mode (default: bars)',
     )
     parser.add_argument(
@@ -139,7 +147,11 @@ def main() -> int:
         )
         state_manager = StateManager(config)
         
-        print("Starting playback... (Press Space to switch modes, Esc to quit)")
+        # Create button panel for mode selection
+        button_panel = create_button_panel(width)
+        state_manager.set_button_panel(button_panel)
+        
+        print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
         # Start non-blocking audio playback
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
@@ -165,10 +177,20 @@ def main() -> int:
             
             # Get visualizer and compute draw commands
             visualizer = get_visualizer(state.mode)
-            commands = visualizer(magnitudes, state.width, state.height)
+            viz_commands = visualizer(magnitudes, state.width, state.height)
             
-            # Render the frame
-            render_frame(renderer, commands)
+            # Render button panel on top
+            button_batches = button_panel.render(state.mode)
+            
+            # Combine visualization and UI batches
+            all_batches = viz_commands.batches + tuple(button_batches)
+            commands = FrameCommands(batches=all_batches, background=viz_commands.background)
+            
+            # Get button labels for text rendering
+            labels = button_panel.get_labels()
+            
+            # Render the frame with text
+            render_frame(renderer, commands, labels)
         
         sd.stop()
         print("\nPlayback finished.")

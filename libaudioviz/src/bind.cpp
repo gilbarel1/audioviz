@@ -46,6 +46,10 @@ PYBIND11_MODULE(_libaudioviz, m) {
         .def("draw_lines", &Renderer::draw_lines,
              py::arg("lines"), py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
              "Draw batch of lines. Each line is (x1, y1, x2, y2)")
+        .def("draw_text", &Renderer::draw_text,
+             py::arg("text"), py::arg("x"), py::arg("y"),
+             py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
+             "Draw text at position (x, y) with RGBA color")
         
         // Event handling
         .def("poll_events", &Renderer::poll_events,
