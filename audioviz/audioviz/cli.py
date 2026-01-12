@@ -10,8 +10,10 @@ import sounddevice as sd
 from .audio import audio_info, stream_audio
 from .state_manager import StateManager, StateManagerConfig
 from .visualizers import get_visualizer
-from .primitives import FrameCommands, DrawBatch
+from .config import FrameCommands, DrawBatch, APP, AUDIO, UI
 from .ui import create_button_panel
+
+
 
 import libaudioviz
 
@@ -50,10 +52,12 @@ def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands,
             ]
             renderer.draw_lines(cpp_lines, r, g, b, a)
     
-    # Draw text labels (white text)
+    # Draw text labels
     if labels:
+        r, g, b, a = UI.text_color.as_tuple()
         for text, x, y in labels:
-            renderer.draw_text(text, x, y, 255, 255, 255, 255)
+            renderer.draw_text(text, x, y, r, g, b, a)
+
     
     # Present to screen
     renderer.present()
@@ -72,21 +76,24 @@ def main() -> int:
     parser.add_argument(
         '--nperseg',
         type=int,
-        default=1024,
-        help='FFT window size (default: 1024)',
+        default=AUDIO.nperseg,
+        help=f'FFT window size (default: {AUDIO.nperseg})',
+
     )
     parser.add_argument(
         '--blocksize',
         type=int,
-        default=8192,
-        help='Audio playback buffer size (default: 8192)',
+        default=AUDIO.blocksize,
+        help=f'Audio playback buffer size (default: {AUDIO.blocksize})',
+
     )
     parser.add_argument(
         '--mode',
         type=str,
-        default='bars',
-        choices=['bars', 'circle', 'waveform', 'spectrum', 'particles', 'symmetry', 'pulse'],
-        help='Initial visualization mode (default: bars)',
+        default=APP.default_mode,
+        choices=APP.modes,
+        help=f'Initial visualization mode (default: {APP.default_mode})',
+
     )
     parser.add_argument(
         '--no-auto-switch',
@@ -133,9 +140,16 @@ def main() -> int:
         time_per_frame = info.duration / len(stft_channels)
         
         # Initialize C++ Renderer
-        width, height = 1200, 800
+        width, height = APP.window_width, APP.window_height
+
         renderer = libaudioviz.Renderer(width, height)
-        renderer.initialize_window()
+        
+        # Load font from configured path
+        try:
+            renderer.initialize_window(APP.font_path)
+        except Exception as e:
+            print(f"Warning: Renderer initialization issue: {e}", file=sys.stderr)
+            raise
         
         # Initialize state manager
         auto_switch = None if args.no_auto_switch else 5.0
@@ -146,10 +160,6 @@ def main() -> int:
             auto_switch_interval=auto_switch,
         )
         state_manager = StateManager(config)
-        
-        # Create button panel for mode selection
-        button_panel = create_button_panel(width)
-        state_manager.set_button_panel(button_panel)
         
         print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
@@ -179,15 +189,25 @@ def main() -> int:
             visualizer = get_visualizer(state.mode)
             viz_commands = visualizer(magnitudes, state.width, state.height)
             
+            # Helper for default background if needed
+            from .config import Color, BLACK
+            
+            if viz_commands:
+                viz_batches = viz_commands.batches
+                bg_color = viz_commands.background
+            else:
+                viz_batches = ()
+                bg_color = BLACK
+            
             # Render button panel on top
-            button_batches = button_panel.render(state.mode)
+            button_batches = state.button_panel.render(state.mode)
             
             # Combine visualization and UI batches
-            all_batches = viz_commands.batches + tuple(button_batches)
-            commands = FrameCommands(batches=all_batches, background=viz_commands.background)
+            all_batches = viz_batches + tuple(button_batches)
+            commands = FrameCommands(batches=all_batches, background=bg_color)
             
             # Get button labels for text rendering
-            labels = button_panel.get_labels()
+            labels = state.button_panel.get_labels()
             
             # Render the frame with text
             render_frame(renderer, commands, labels)

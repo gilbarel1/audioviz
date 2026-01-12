@@ -2,6 +2,7 @@
 #include <vector>
 #include <tuple>
 #include <string>
+#include <unordered_map>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
@@ -24,7 +25,7 @@ public:
     ~Renderer();
 
     // Window management
-    void initialize_window();
+    void initialize_window(const std::string& font_path);
     int get_width() const { return width_; }
     int get_height() const { return height_; }
 
@@ -55,4 +56,7 @@ private:
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
     TTF_Font* font_ = nullptr;
+    
+    // Cache for text textures (key: text string, value: source texture)
+    std::unordered_map<std::string, SDL_Texture*> text_cache_;
 };

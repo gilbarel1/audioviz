@@ -8,10 +8,12 @@ from typing import Callable, Protocol
 import numpy as np
 import math
 
-from .primitives import (
-    Rect, Line, DrawBatch, FrameCommands, Color,
-    GREEN, CYAN, YELLOW, PURPLE, RED, BLUE, ORANGE, MAGENTA
+
+from .config import (
+    Rect, Line, DrawBatch, FrameCommands, Color
 )
+from .config import VIZ
+
 
 
 class Visualizer(Protocol):
@@ -21,26 +23,25 @@ class Visualizer(Protocol):
         magnitudes: np.ndarray, 
         width: int, 
         height: int
-    ) -> FrameCommands:
+    ) -> FrameCommands | None:
         ...
 
 
-BAR_SCALE = 0.9  # Scale factor for normalized log magnitudes (0-1 range)
-BAR_DB_FLOOR = -60.0  # Fixed floor in dB (quietest visible level)
-BAR_DB_CEILING = -10.0  # Fixed ceiling in dB (loudest expected level)
+
 
 
 def bars_visualizer(
     magnitudes: np.ndarray, 
     width: int, 
     height: int,
-    color: Color = GREEN,
-    scale: float = BAR_SCALE,
+    color: Color | None = None,
+
+    scale: float | None = None,
     mirror: bool = True,
     log_scale: bool = True,
-    db_floor: float = BAR_DB_FLOOR,
-    db_ceiling: float = BAR_DB_CEILING,
-) -> FrameCommands:
+    db_floor: float | None = None,
+    db_ceiling: float | None = None,
+) -> FrameCommands | None:
     """
     Classic bar visualization - vertical bars representing frequency magnitudes.
     
@@ -55,9 +56,15 @@ def bars_visualizer(
         db_floor: Fixed floor in dB (values below this show as 0 height)
         db_ceiling: Fixed ceiling in dB (values above this clip to max height)
     """
+    scale = scale if scale is not None else VIZ.bar_scale
+    color = color if color is not None else VIZ.bar_color
+
+    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
+    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
+
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     # Apply logarithmic scaling to compress dynamic range
     if log_scale:
@@ -71,7 +78,8 @@ def bars_visualizer(
         processed_mags = normalized
     else:
         # Linear scaling fallback - normalize to a fixed max
-        fixed_max = 0.1
+        fixed_max = VIZ.linear_scaling_max
+
         processed_mags = np.clip(magnitudes / fixed_max, 0.0, 1.0)
     
     rects: list[Rect] = []
@@ -125,19 +133,19 @@ def bars_visualizer(
     return FrameCommands.single_batch(batch)
 
 
-CIRCLE_SCALE = 3000.0
-BASE_RADIUS_RATIO = 0.2
+
 
 
 def circle_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    color: Color = CYAN,
-    scale: float = CIRCLE_SCALE,
-    base_radius_ratio: float = BASE_RADIUS_RATIO,
+    color: Color | None = None,
+
+    scale: float | None = None,
+    base_radius_ratio: float | None = None,
     mirror: bool = True,
-) -> FrameCommands:
+) -> FrameCommands | None:
     """
     Radial visualization - lines emanating from a central circle.
     
@@ -150,9 +158,14 @@ def circle_visualizer(
         base_radius_ratio: Inner circle radius as fraction of max radius
         mirror: If True, mirror lines across horizontal axis
     """
+    scale = scale if scale is not None else VIZ.circle_scale
+    color = color if color is not None else VIZ.circle_color
+
+    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else VIZ.circle_base_radius_ratio
+    
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     center_x = width // 2
     center_y = height // 2
@@ -197,16 +210,17 @@ def circle_visualizer(
 # WAVEFORM VISUALIZER - Oscilloscope-style horizontal wave
 # ============================================================================
 
-WAVEFORM_SCALE = 0.7  # Vertical amplitude as fraction of height
+
 
 
 def waveform_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    color: Color = YELLOW,
-    scale: float = WAVEFORM_SCALE,
-) -> FrameCommands:
+    color: Color | None = None,
+
+    scale: float | None = None,
+) -> FrameCommands | None:
     """
     Oscilloscope-style waveform - lines connecting frequency bins as a wave.
     Mirrored from center like bars visualizer.
@@ -218,9 +232,13 @@ def waveform_visualizer(
         color: Line color
         scale: Vertical amplitude as fraction of height
     """
+    scale = scale if scale is not None else VIZ.waveform_scale
+    color = color if color is not None else VIZ.waveform_color
+
+    
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     center_x = width // 2
     center_y = height // 2
@@ -231,7 +249,8 @@ def waveform_visualizer(
     normalized = magnitudes / max_mag
     
     # Subsample for wider wave segments (use every Nth point)
-    subsample = 4
+    subsample = VIZ.waveform_subsample
+
     sampled = normalized[::subsample]
     num_points = len(sampled)
     
@@ -266,36 +285,31 @@ def waveform_visualizer(
 # SPECTRUM VISUALIZER - Multi-band frequency display with colors
 # ============================================================================
 
-SPECTRUM_SCALE = 0.85
 
-# Band colors: sub-bass, bass, mids, high-mids, highs
-BAND_COLORS = [
-    Color(255, 50, 50),    # Red - sub-bass
-    Color(255, 150, 0),    # Orange - bass
-    Color(255, 255, 0),    # Yellow - low-mids
-    Color(0, 255, 100),    # Green - mids
-    Color(0, 200, 255),    # Cyan - high-mids
-    Color(150, 100, 255),  # Purple - highs
-]
 
 
 def multiband_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    scale: float = SPECTRUM_SCALE,
-    db_floor: float = BAR_DB_FLOOR,
-    db_ceiling: float = BAR_DB_CEILING,
-) -> FrameCommands:
+    scale: float | None = None,
+    db_floor: float | None = None,
+    db_ceiling: float | None = None,
+) -> FrameCommands | None:
     """
     Multi-band spectrum analyzer - many thin bars colored by frequency band.
     
     Bands: Sub-bass (red), Bass (orange), Low-mids (yellow), 
            Mids (green), High-mids (cyan), Highs (purple)
     """
+    scale = scale if scale is not None else VIZ.spectrum_scale
+    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
+    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
+    band_colors = VIZ.band_colors
+
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(BAND_COLORS[0]))
+        return None
     
     # Apply dB scaling to all magnitudes
     eps = 1e-10
@@ -314,7 +328,8 @@ def multiband_visualizer(
     ]
     
     # Subsample for wider bars (use every 2nd bin)
-    subsample = 2
+    subsample = VIZ.spectrum_subsample
+
     sampled = normalized[::subsample]
     num_bars = len(sampled)
     
@@ -328,7 +343,7 @@ def multiband_visualizer(
     batches: list[DrawBatch] = []
     
     for band_idx, (start, end) in enumerate(band_ranges):
-        color = BAND_COLORS[band_idx]
+        color = band_colors[band_idx]
         rects: list[Rect] = []
         
         # Convert band range to subsampled indices
@@ -368,16 +383,17 @@ def multiband_visualizer(
 # PARTICLES VISUALIZER - Reactive starfield effect
 # ============================================================================
 
-PARTICLE_COUNT = 200
+
 
 
 def particles_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    color: Color = MAGENTA,
-    particle_count: int = PARTICLE_COUNT,
-) -> FrameCommands:
+    color: Color | None = None,
+
+    particle_count: int | None = None,
+) -> FrameCommands | None:
     """
     Particle starfield - dots that scatter based on audio energy.
     
@@ -388,20 +404,27 @@ def particles_visualizer(
         color: Particle color
         particle_count: Number of particles to render
     """
+    particle_count = particle_count if particle_count is not None else VIZ.particle_count
+    color = color if color is not None else VIZ.particle_color
+
+    
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     # Calculate overall energy (emphasize bass frequencies)
     bass_weight = np.linspace(2.0, 0.5, size)
     weighted_mags = magnitudes * bass_weight
-    energy = np.mean(weighted_mags) * 3000
+    energy = np.mean(weighted_mags) * VIZ.particle_energy_multiplier
+
     energy = min(energy, 1.0)
     
     # Pre-calculate dB values for all magnitudes to use for particle movement
     eps = 1e-10
-    db_floor = -60.0
-    db_ceiling = -10.0
+    eps = 1e-10
+    db_floor = VIZ.particle_db_floor
+    db_ceiling = VIZ.particle_db_ceiling
+
     db_values = 20.0 * np.log10(magnitudes + eps)
     normalized_mags = (db_values - db_floor) / (db_ceiling - db_floor)
     normalized_mags = np.clip(normalized_mags, 0.0, 1.0)
@@ -420,7 +443,8 @@ def particles_visualizer(
         base_radius = (i / particle_count) * min(width, height) * 0.45
         
         # Magnitude affects radial offset - increased multiplier
-        radius_offset = mag * 300 * energy
+        radius_offset = mag * VIZ.particle_radius_multiplier * energy
+
         radius = base_radius + radius_offset
         
         center_x = width // 2
@@ -430,7 +454,8 @@ def particles_visualizer(
         y = int(center_y + math.sin(angle) * radius)
         
         # Particle size based on magnitude
-        size_px = max(2, int(3 + mag * 15))
+        size_px = max(2, int(3 + mag * VIZ.particle_size_multiplier))
+
         
         if 0 <= x < width and 0 <= y < height:
             rects.append(Rect(x, y, size_px, size_px))
@@ -443,19 +468,20 @@ def particles_visualizer(
 # SYMMETRY VISUALIZER - Four-quadrant mirrored kaleidoscope bars
 # ============================================================================
 
-SYMMETRY_SCALE = 0.8
+
 
 
 def symmetry_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    color: Color = PURPLE,
-    scale: float = SYMMETRY_SCALE,
+    color: Color | None = None,
+
+    scale: float | None = None,
     log_scale: bool = True,
-    db_floor: float = BAR_DB_FLOOR,
-    db_ceiling: float = BAR_DB_CEILING,
-) -> FrameCommands:
+    db_floor: float | None = None,
+    db_ceiling: float | None = None,
+) -> FrameCommands | None:
     """
     Four-quadrant symmetric bars - kaleidoscope-like mirror effect.
     
@@ -466,9 +492,15 @@ def symmetry_visualizer(
         color: Bar color
         scale: Height scaling factor
     """
+    scale = scale if scale is not None else VIZ.symmetry_scale
+    color = color if color is not None else VIZ.symmetry_color
+
+    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
+    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
+    
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     # Apply logarithmic scaling
     if log_scale:
@@ -479,7 +511,8 @@ def symmetry_visualizer(
         normalized = np.clip(normalized, 0.0, 1.0)
         processed_mags = normalized
     else:
-        fixed_max = 0.1
+        fixed_max = VIZ.linear_scaling_max
+
         processed_mags = np.clip(magnitudes / fixed_max, 0.0, 1.0)
     
     rects: list[Rect] = []
@@ -534,20 +567,19 @@ def symmetry_visualizer(
 # PULSE VISUALIZER - Breathing ring based on audio energy
 # ============================================================================
 
-PULSE_BASE_RADIUS = 0.02
-PULSE_MAX_RADIUS = 0.70
-PULSE_LINE_COUNT = 120
+
 
 
 def pulse_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
-    color: Color = RED,
-    base_radius_ratio: float = PULSE_BASE_RADIUS,
-    max_radius_ratio: float = PULSE_MAX_RADIUS,
-    line_count: int = PULSE_LINE_COUNT,
-) -> FrameCommands:
+    color: Color | None = None,
+
+    base_radius_ratio: float | None = None,
+    max_radius_ratio: float | None = None,
+    line_count: int | None = None,
+) -> FrameCommands | None:
     """
     Pulsing ring - expands and contracts based on bass energy.
     
@@ -559,9 +591,15 @@ def pulse_visualizer(
         base_radius_ratio: Minimum radius as fraction of screen
         max_radius_ratio: Maximum radius as fraction of screen
     """
+    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else VIZ.pulse_base_radius
+    color = color if color is not None else VIZ.pulse_color
+
+    max_radius_ratio = max_radius_ratio if max_radius_ratio is not None else VIZ.pulse_max_radius
+    line_count = line_count if line_count is not None else VIZ.pulse_line_count
+
     size = len(magnitudes)
     if size == 0:
-        return FrameCommands.single_batch(DrawBatch.empty(color))
+        return None
     
     # Focus on bass frequencies (first 1/8 of spectrum)
     bass_end = max(1, size // 8)
@@ -569,8 +607,9 @@ def pulse_visualizer(
     
     # Convert to dB for better dynamic range
     eps = 1e-10
-    db_floor = -60.0
-    db_ceiling = -20.0  # Lower ceiling makes it easier to reach max size
+    db_floor = VIZ.pulse_db_floor
+    db_ceiling = VIZ.pulse_db_ceiling  # Lower ceiling makes it easier to reach max size
+
     
     bass_avg = np.mean(bass_mags)
     db_val = 20.0 * np.log10(bass_avg + eps)

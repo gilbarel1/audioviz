@@ -7,11 +7,10 @@ It provides an immutable state object that drives the render loop.
 from dataclasses import dataclass
 import time
 from typing import Optional, TYPE_CHECKING
+from .ui import ButtonPanel, create_button_panel
+from .config import UI, APP
 
-from .visualizers import next_mode
 
-if TYPE_CHECKING:
-    from .ui import ButtonPanel
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +28,8 @@ class VisualizationState:
     mode: str
     width: int
     height: int
+    button_panel: "ButtonPanel"
+    auto_switch_interval: Optional[float] = 5.0
     is_running: bool = True
     
     def with_mode(self, new_mode: str) -> "VisualizationState":
@@ -37,6 +38,8 @@ class VisualizationState:
             mode=new_mode,
             width=self.width,
             height=self.height,
+            button_panel=self.button_panel,
+            auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
     
@@ -46,6 +49,8 @@ class VisualizationState:
             mode=self.mode,
             width=width,
             height=height,
+            button_panel=create_button_panel(width),
+            auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
     
@@ -55,6 +60,8 @@ class VisualizationState:
             mode=self.mode,
             width=self.width,
             height=self.height,
+            button_panel=self.button_panel,
+            auto_switch_interval=self.auto_switch_interval,
             is_running=False
         )
 
@@ -64,7 +71,7 @@ class StateManager:
     Manages state transitions based on events and time.
     """
     
-    def __init__(self, config: StateManagerConfig = StateManagerConfig()):
+    def __init__(self, config: StateManagerConfig):
         """
         Initialize the State Manager.
         
@@ -75,14 +82,10 @@ class StateManager:
             mode=config.initial_mode,
             width=config.width,
             height=config.height,
+            button_panel=create_button_panel(config.width),
+            auto_switch_interval=config.auto_switch_interval,
         )
-        self.auto_switch_interval = config.auto_switch_interval
         self._last_switch_time = time.time()
-        self._button_panel: Optional["ButtonPanel"] = None
-    
-    def set_button_panel(self, panel: "ButtonPanel") -> None:
-        """Set the button panel for click handling."""
-        self._button_panel = panel
     
     @property
     def state(self) -> VisualizationState:
@@ -103,9 +106,9 @@ class StateManager:
         self._state = self._process_events(self._state, events)
         
         # Then, apply time-driven transitions (if still running)
-        if self._state.is_running and self.auto_switch_interval is not None:
+        if self._state.is_running and self._state.auto_switch_interval is not None:
             current_time = time.time()
-            if current_time - self._last_switch_time >= self.auto_switch_interval:
+            if current_time - self._last_switch_time >= self._state.auto_switch_interval:
                 self._switch_mode()
         
         return self._state
@@ -113,34 +116,50 @@ class StateManager:
     def _process_events(self, state: VisualizationState, events: list[tuple[str, int, int]]) -> VisualizationState:
         """Pure-ish function to calculate next state based on events."""
         new_state = state
-        for event_type, data1, data2 in events:
-            if event_type == "quit":
-                return new_state.stopped()
-            
-            elif event_type == "resize":
-                new_state = new_state.with_size(data1, data2)
-            
-            elif event_type == "keydown":
-                # Space bar to switch modes manually
-                if data1 == 32:  # SDLK_SPACE
-                    self._switch_mode()
-                    new_state = new_state.with_mode(self._state.mode)
-                elif data1 == 27:  # SDLK_ESCAPE
+        for event in events:
+            match event:
+                case ("quit", _, _):
                     return new_state.stopped()
-            elif event_type == "mousedown":
-                # data1 = x, data2 = y
-                if self._button_panel:
-                    clicked_mode = self._button_panel.hit_test(data1, data2)
-                    if clicked_mode and clicked_mode != self._state.mode:
-                        self._state = self._state.with_mode(clicked_mode)
-                        self._last_switch_time = time.time()
-                        print(f"Switched to mode: {clicked_mode}")
-                        new_state = new_state.with_mode(clicked_mode)
+                
+                case ("resize", width, height):
+                    new_state = new_state.with_size(width, height)
+                
+                case ("keydown", key, _):
+                    # Space bar to switch modes manually
+                    if key == 32:  # SDLK_SPACE
+                        self._switch_mode()
+                        new_state = new_state.with_mode(self._state.mode)
+                    elif key == 27:  # SDLK_ESCAPE
+                        return new_state.stopped()
+                
+                case ("mousedown", x, y):
+                    clicked_mode = state.button_panel.hit_test(x, y)
+                    if clicked_mode:
+                        clicked_mode = clicked_mode.lower()
+                        if clicked_mode != self._state.mode:
+                            self._state = self._state.with_mode(clicked_mode)
+                            self._last_switch_time = time.time()
+                            print(f"Switched to mode: {clicked_mode}")
+                            new_state = new_state.with_mode(clicked_mode)
         return new_state
     
     def _switch_mode(self) -> None:
         """Switch to the next visualization mode."""
-        new_mode = next_mode(self._state.mode)
+        new_mode = self._get_next_mode(self._state.mode)
         self._state = self._state.with_mode(new_mode)
         self._last_switch_time = time.time()
         print(f"Switched to mode: {new_mode}")
+
+    def _get_next_mode(self, current: str) -> str:
+        """Calculate next mode using configured mode order."""
+        modes = APP.modes
+        try:
+            # Handle aliases if necessary (e.g. spectrum -> multiband)
+            if current == "spectrum" and "multiband" in modes:
+                 current = "multiband"
+
+            idx = modes.index(current)
+            return modes[(idx + 1) % len(modes)]
+        except ValueError:
+            return modes[0] if modes else "bars"
+

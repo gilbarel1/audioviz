@@ -10,6 +10,14 @@ Renderer::Renderer(int width, int height) : width_(width), height_(height) {
 }
 
 Renderer::~Renderer() {
+    // Clean up text cache
+    for (auto& pair : text_cache_) {
+        if (pair.second) {
+            SDL_DestroyTexture(pair.second);
+        }
+    }
+    text_cache_.clear();
+
     if (font_) {
         TTF_CloseFont(font_);
     }
@@ -24,7 +32,7 @@ Renderer::~Renderer() {
     std::cout << "Renderer destroyed" << std::endl;
 }
 
-void Renderer::initialize_window() {
+void Renderer::initialize_window(const std::string& font_path) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         throw std::runtime_error("SDL could not initialize! SDL_Error: " + std::string(SDL_GetError()));
     }
@@ -55,21 +63,16 @@ void Renderer::initialize_window() {
     // Ensure logical size matches window size initially
     SDL_RenderSetLogicalSize(renderer_, width_, height_);
     
-    // Load font - try common system font paths
-    const char* font_paths[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        nullptr
-    };
-    
-    for (int i = 0; font_paths[i] != nullptr; i++) {
-        font_ = TTF_OpenFont(font_paths[i], 16);
-        if (font_) break;
-    }
-    
-    if (!font_) {
-        std::cerr << "Warning: Could not load font, text will not render" << std::endl;
+    // Load font from provided path
+    if (!font_path.empty()) {
+        font_ = TTF_OpenFont(font_path.c_str(), 16);
+        if (!font_) {
+            std::cerr << "Warning: Could not open font '" << font_path << "': " << TTF_GetError() << std::endl;
+        } else {
+             std::cout << "Loaded font: " << font_path << std::endl;
+        }
+    } else {
+        std::cerr << "Warning: No font path provided, text will not render" << std::endl;
     }
 
     std::cout << "Window initialized" << std::endl;
@@ -122,21 +125,38 @@ void Renderer::draw_text(const std::string& text, int x, int y,
                          uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     if (!renderer_ || !font_ || text.empty()) return;
     
-    SDL_Color color = {r, g, b, a};
-    SDL_Surface* surface = TTF_RenderText_Blended(font_, text.c_str(), color);
-    if (!surface) return;
+    SDL_Texture* texture = nullptr;
     
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer_, surface);
-    if (!texture) {
+    // Check cache
+    auto it = text_cache_.find(text);
+    if (it != text_cache_.end()) {
+        texture = it->second;
+    } else {
+        // Create new texture (WHITE for tinting)
+        SDL_Color white = {255, 255, 255, 255};
+        SDL_Surface* surface = TTF_RenderText_Blended(font_, text.c_str(), white);
+        if (!surface) return;
+        
+        texture = SDL_CreateTextureFromSurface(renderer_, surface);
         SDL_FreeSurface(surface);
-        return;
+        
+        if (!texture) return;
+        
+        // Store in cache
+        text_cache_[text] = texture;
     }
     
-    SDL_Rect dest = {x, y, surface->w, surface->h};
+    // Apply color and alpha modulation
+    SDL_SetTextureColorMod(texture, r, g, b);
+    SDL_SetTextureAlphaMod(texture, a);
+    
+    // Query dimensions
+    int w, h;
+    SDL_QueryTexture(texture, nullptr, nullptr, &w, &h);
+    
+    SDL_Rect dest = {x, y, w, h};
     SDL_RenderCopy(renderer_, texture, nullptr, &dest);
     
-    SDL_DestroyTexture(texture);
-    SDL_FreeSurface(surface);
 }
 
 std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {

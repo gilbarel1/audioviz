@@ -29,7 +29,7 @@ PYBIND11_MODULE(_libaudioviz, m) {
         .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
         
         // Window management
-        .def("initialize_window", &Renderer::initialize_window, "Open the visualization window")
+        .def("initialize_window", &Renderer::initialize_window, py::arg("font_path"), "Open the visualization window with specific font")
         .def("get_width", &Renderer::get_width, "Get current window width")
         .def("get_height", &Renderer::get_height, "Get current window height")
         
