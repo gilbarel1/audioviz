@@ -4,10 +4,11 @@ This module provides button panel functionality for mode selection.
 """
 
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Optional
 
-from .config import Rect, DrawBatch, FrameCommands, Color, WHITE, BLACK, Line
-from .config import UI
+from .config import Rect, DrawBatch, FrameCommands, Color, WHITE, BLACK, Line, ButtonType, UIConfig
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,7 @@ class Button:
     y: int
     width: int
     height: int
+    type: ButtonType  # Button type must be explicitly specified
     
     def contains(self, px: int, py: int) -> bool:
         """Check if point (px, py) is inside this button."""
@@ -49,71 +51,86 @@ class ButtonPanel:
                 return button.label
         return None
     
-    def render(self, current_mode: str) -> list[DrawBatch]:
-        """
-        Render the button panel.
-        
-        Args:
-            current_mode: The currently active mode (will be highlighted)
-            
-        Returns:
-            List of DrawBatches to render
-        """
-        batches: list[DrawBatch] = []
-        
-        # Draw each button
-        for button in self.buttons:
-            # Choose color based on whether this is the active mode
-            if button.label.lower() == current_mode.lower():
-                bg_color = UI.button_active_color
-            else:
-                bg_color = UI.button_bg_color
 
-            
-            # Button background
-            rect = Rect(button.x, button.y, button.width, button.height)
-            batches.append(DrawBatch.from_rects([rect], bg_color))
-            
-            
-            border_lines = [
-                # Top
-                Line(button.x, button.y, button.x + button.width, button.y),
-                # Bottom
-                Line(button.x, button.y + button.height, 
-                     button.x + button.width, button.y + button.height),
-                # Left
-                Line(button.x, button.y, button.x, button.y + button.height),
-                # Right
-                Line(button.x + button.width, button.y,
-                     button.x + button.width, button.y + button.height),
-            ]
-            batches.append(DrawBatch.from_lines(border_lines, UI.button_border_color))
 
-        
-        return batches
+
+def render_button_panel(panel: ButtonPanel, current_mode: str, ui_config: UIConfig) -> list[DrawBatch]:
+    """
+    Render the button panel to draw batches.
     
-    def get_labels(self) -> list[tuple[str, int, int]]:
-        """
-        Get button labels with their positions for text rendering.
+    Args:
+        panel: The ButtonPanel to render
+        current_mode: The currently active mode (will be highlighted)
         
-        Returns:
-            List of (label, x, y) tuples for text centering
-        """
-        labels = []
-        for button in self.buttons:
-            # Center text in button
-            text_x = button.x + UI.text_padding_x
-            text_y = button.y + (button.height - UI.text_vertical_correction) // 2
+    Returns:
+        List of DrawBatches to render
+    """
+    batches: list[DrawBatch] = []
+    
+    # Draw each button
+    for button in panel.buttons:
+        # Choose color based on whether this is the active mode
+        if button.label.lower() == current_mode.lower():
+            bg_color = ui_config.mode_button_active_color
+        else:
+            bg_color = ui_config.mode_button_bg_color
 
-            labels.append((button.label, text_x, text_y))
-        return labels
+        
+        # Button background
+        rect = Rect(button.x, button.y, button.width, button.height)
+        batches.append(DrawBatch.from_rects([rect], bg_color))
+        
+        
+        border_lines = [
+            # Top
+            Line(button.x, button.y, button.x + button.width, button.y),
+            # Bottom
+            Line(button.x, button.y + button.height, 
+                 button.x + button.width, button.y + button.height),
+            # Left
+            Line(button.x, button.y, button.x, button.y + button.height),
+            # Right
+            Line(button.x + button.width, button.y,
+                 button.x + button.width, button.y + button.height),
+        ]
+        batches.append(DrawBatch.from_lines(border_lines, ui_config.mode_button_border_color))
+
+    
+    return batches
 
 
-def _layout_buttons(button_labels: list[str], screen_width: int) -> list[Button]:
+def calculate_label_positions(button_specs: list[tuple[str, ButtonType]], screen_width: int, ui_config: UIConfig) -> list[tuple[str, int, int]]:
+    """Calculate text label positions for buttons without creating Button objects.
+    
+    Args:
+        button_specs: List of (label, button_type) tuples
+        screen_width: Width of the screen for centering
+        
+    Returns:
+        List of (label, x, y) tuples for text rendering
+    """
+    labels = []
+    
+    # Calculate layout (same as _layout_buttons)
+    num_buttons = len(button_specs)
+    total_width = num_buttons * ui_config.mode_button_width + (num_buttons - 1) * ui_config.mode_button_padding
+    start_x = (screen_width - total_width) // 2
+    
+    # Calculate text positions for each button
+    for i, (label, button_type) in enumerate(button_specs):
+        button_x = start_x + i * (ui_config.mode_button_width + ui_config.mode_button_padding)
+        text_x = button_x + ui_config.mode_text_padding_x
+        text_y = ui_config.mode_button_y_offset + (ui_config.mode_button_height - ui_config.mode_text_vertical_correction) // 2
+        labels.append((label.capitalize(), text_x, text_y))
+    
+    return labels
+
+
+def _layout_buttons(button_specs: list[tuple[str, ButtonType]], screen_width: int, ui_config: UIConfig) -> list[Button]:
     """Calculate button positions for horizontal layout.
     
     Args:
-        button_labels: List of button label strings
+        button_specs: List of (label, button_type) tuples
         screen_width: Width of the screen for centering
         
     Returns:
@@ -122,32 +139,34 @@ def _layout_buttons(button_labels: list[str], screen_width: int) -> list[Button]
     buttons = []
     
     # Calculate layout
-    num_buttons = len(button_labels)
-    total_width = num_buttons * UI.button_width + (num_buttons - 1) * UI.button_padding
+    num_buttons = len(button_specs)
+    total_width = num_buttons * ui_config.mode_button_width + (num_buttons - 1) * ui_config.mode_button_padding
     start_x = (screen_width - total_width) // 2
     
     # Create positioned buttons
-    for i, label in enumerate(button_labels):
-        x = start_x + i * (UI.button_width + UI.button_padding)
+    for i, (label, button_type) in enumerate(button_specs):
+        x = start_x + i * (ui_config.mode_button_width + ui_config.mode_button_padding)
         buttons.append(Button(
             label=label.capitalize(),
             x=x,
-            y=UI.button_y_offset,
-            width=UI.button_width,
-            height=UI.button_height
+            y=ui_config.mode_button_y_offset,
+            width=ui_config.mode_button_width,
+            height=ui_config.mode_button_height,
+            type=button_type
         ))
     
     return buttons
 
 
-def create_button_panel(screen_width: int) -> ButtonPanel:
-    """Factory function to create a button panel with configured labels.
+def create_button_panel(screen_width: int, button_specs: list[tuple[str, ButtonType]], ui_config: UIConfig) -> ButtonPanel:
+    """Factory function to create a button panel.
     
     Args:
         screen_width: Width of the screen for centering buttons
+        button_specs: List of (label, button_type) tuples
         
     Returns:
         ButtonPanel with buttons laid out horizontally
     """
-    buttons = _layout_buttons(list(UI.button_labels), screen_width)
+    buttons = _layout_buttons(button_specs, screen_width, ui_config)
     return ButtonPanel(buttons)

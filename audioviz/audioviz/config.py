@@ -4,6 +4,15 @@ Centralizes all configuration constants to avoid scattered hardcoded values.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
+from enum import Enum, auto
+
+
+class ButtonType(Enum):
+    """Types of buttons that can be created."""
+    MODE = auto()  # Mode selection buttons
+
+
 @dataclass(frozen=True, slots=True)
 class Color:
     """RGBA color representation."""
@@ -88,26 +97,24 @@ class FrameCommands:
 class UIConfig:
     """UI styling and layout configuration."""
     
-    # Button dimensions
-    button_height: int = 45
-    button_width: int = 110
-    button_padding: int = 8
-    button_y_offset: int = 10
+    # Mode button dimensions
+    mode_button_height: int = 45
+    mode_button_width: int = 110
+    mode_button_padding: int = 8
+    mode_button_y_offset: int = 10
     
-    # Button colors
-    button_bg_color: Color = Color(40, 40, 40, 220)
-    button_hover_color: Color = Color(60, 60, 60, 220)
-    button_active_color: Color = Color(80, 120, 200, 220)
-    button_border_color: Color = Color(100, 100, 100, 255)
+    # Mode button colors
+    mode_button_bg_color: Color = Color(40, 40, 40, 220)
+    mode_button_hover_color: Color = Color(60, 60, 60, 220)
+    mode_button_active_color: Color = Color(80, 120, 200, 220)
+    mode_button_border_color: Color = Color(100, 100, 100, 255)
 
     
-    # Text rendering
+    # Mode button text rendering
     text_color: Color = WHITE
-    text_padding_x: int = 10
-    text_vertical_correction: int = 16  # Approx height for vertical centering
+    mode_text_padding_x: int = 10
+    mode_text_vertical_correction: int = 16  # Approx height for vertical centering
 
-    # Button labels
-    button_labels: tuple[str, ...] = ("bars", "circle", "waveform", "spectrum", "particles", "symmetry", "pulse")
 
 
 
@@ -126,20 +133,20 @@ class AppConfig:
     default_mode: str = "bars"
     auto_switch_interval: float = 5.0
     
-    # Cycle order for auto-switching and "next mode" logic
-    modes: tuple[str, ...] = (
-        "bars",
-        "circle",
-        "waveform",
-        "multiband",
-        "particles",
-        "symmetry",
-        "pulse",
+    # Button specifications (label, type) for the button panel
+    button_specs: tuple[tuple[str, "ButtonType"], ...] = (
+        ("bars", ButtonType.MODE),
+        ("circle", ButtonType.MODE),
+        ("waveform", ButtonType.MODE),
+        ("multiband", ButtonType.MODE),
+        ("particles", ButtonType.MODE),
+        ("symmetry", ButtonType.MODE),
+        ("pulse", ButtonType.MODE),
     )
 
     
-    # Font path (hardcoded WSL path as requested)
-    font_path: str = "/mnt/c/audioviz/audioviz/audioviz/resources/Roboto-Regular.ttf"
+    # Font path - resolved relative to this module (resources is in parent dir)
+    font_path: str = str(Path(__file__).parent.parent / "resources" / "Roboto-Regular.ttf")
 
 
 @dataclass(frozen=True)
@@ -147,6 +154,88 @@ class AudioConfig:
     """Audio processing configuration."""
     nperseg: int = 1024
     blocksize: int = 8192
+
+
+
+
+# Common visualization constants
+DB_FLOOR_DEFAULT = -60.0
+DB_CEILING_DEFAULT = -10.0
+LINEAR_SCALING_MAX = 0.1  # For non-log scaling fallback
+
+
+@dataclass(frozen=True)
+class BarsConfig:
+    """Configuration for bars visualizer."""
+    scale: float = 0.9
+    color: Color = GREEN
+    db_floor: float = DB_FLOOR_DEFAULT
+    db_ceiling: float = DB_CEILING_DEFAULT
+
+
+@dataclass(frozen=True)
+class CircleConfig:
+    """Configuration for circle visualizer."""
+    scale: float = 3000.0
+    color: Color = CYAN
+    base_radius_ratio: float = 0.2
+
+
+@dataclass(frozen=True)
+class WaveformConfig:
+    """Configuration for waveform visualizer."""
+    scale: float = 0.7
+    color: Color = YELLOW
+    subsample: int = 4
+
+
+@dataclass(frozen=True)
+class SpectrumConfig:
+    """Configuration for spectrum/multiband visualizer."""
+    scale: float = 0.85
+    subsample: int = 2
+    db_floor: float = DB_FLOOR_DEFAULT
+    db_ceiling: float = DB_CEILING_DEFAULT
+    band_colors: tuple[Color, ...] = (
+        RED,                   # Sub-bass (Red)
+        Color(255, 150, 0),    # Bass (Orange)
+        YELLOW,                # Low-mids (Yellow)
+        Color(0, 255, 100),    # Mids (Green)
+        Color(0, 200, 255),    # High-mids (Cyan)
+        Color(150, 100, 255),  # Highs (Purple)
+    )
+
+
+@dataclass(frozen=True)
+class ParticlesConfig:
+    """Configuration for particles visualizer."""
+    count: int = 200
+    color: Color = MAGENTA
+    energy_multiplier: float = 3000.0
+    radius_multiplier: float = 300.0
+    size_multiplier: float = 15.0
+    db_floor: float = DB_FLOOR_DEFAULT
+    db_ceiling: float = DB_CEILING_DEFAULT
+
+
+@dataclass(frozen=True)
+class SymmetryConfig:
+    """Configuration for symmetry visualizer."""
+    scale: float = 0.8
+    color: Color = PURPLE
+    db_floor: float = DB_FLOOR_DEFAULT
+    db_ceiling: float = DB_CEILING_DEFAULT
+
+
+@dataclass(frozen=True)
+class PulseConfig:
+    """Configuration for pulse visualizer."""
+    base_radius: float = 0.02
+    max_radius: float = 0.70
+    line_count: int = 120
+    color: Color = RED
+    db_floor: float = DB_FLOOR_DEFAULT
+    db_ceiling: float = -20.0
 
 
 @dataclass(frozen=True)
@@ -214,14 +303,4 @@ class VizConfig:
     pulse_color: Color = RED
     pulse_db_floor: float = -60.0
     pulse_db_ceiling: float = -20.0
-
-
-
-
-# Singleton instances
-UI = UIConfig()
-APP = AppConfig()
-AUDIO = AudioConfig()
-VIZ = VizConfig()
-
 

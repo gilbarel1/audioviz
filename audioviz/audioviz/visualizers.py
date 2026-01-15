@@ -10,9 +10,10 @@ import math
 
 
 from .config import (
-    Rect, Line, DrawBatch, FrameCommands, Color
+    Rect, Line, DrawBatch, FrameCommands, Color, LINEAR_SCALING_MAX,
+    BarsConfig, CircleConfig, WaveformConfig, SpectrumConfig, 
+    ParticlesConfig, SymmetryConfig, PulseConfig
 )
-from .config import VIZ
 
 
 
@@ -26,21 +27,29 @@ class Visualizer(Protocol):
     ) -> FrameCommands | None:
         ...
 
+# Internal registry to store visualizer functions and their config classes
+_VIZ_REGISTRY = {}
+
+def register_visualizer(name: str, config_cls: type, is_alias: bool = False):
+    """Decorator to register a visualizer function with a name and config class."""
+    def decorator(func):
+        _VIZ_REGISTRY[name] = (func, config_cls, is_alias)
+        return func
+    return decorator
 
 
 
 
+
+
+@register_visualizer("bars", BarsConfig)
 def bars_visualizer(
     magnitudes: np.ndarray, 
     width: int, 
     height: int,
-    color: Color | None = None,
-
-    scale: float | None = None,
+    config: "BarsConfig",
     mirror: bool = True,
     log_scale: bool = True,
-    db_floor: float | None = None,
-    db_ceiling: float | None = None,
 ) -> FrameCommands | None:
     """
     Classic bar visualization - vertical bars representing frequency magnitudes.
@@ -49,18 +58,15 @@ def bars_visualizer(
         magnitudes: Frequency magnitude array
         width: Window width in pixels
         height: Window height in pixels
-        color: Bar color
-        scale: Magnitude scaling factor (multiplier for normalized values)
+        config: Configuration for bars visualizer
         mirror: If True, draw mirrored bars from center
         log_scale: If True, use logarithmic (dB) scaling for more balanced display
-        db_floor: Fixed floor in dB (values below this show as 0 height)
-        db_ceiling: Fixed ceiling in dB (values above this clip to max height)
     """
-    scale = scale if scale is not None else VIZ.bar_scale
-    color = color if color is not None else VIZ.bar_color
-
-    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
-    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
+    # Use config values from injected parameter
+    scale = config.scale
+    color = config.color
+    db_floor = config.db_floor
+    db_ceiling = config.db_ceiling
 
     size = len(magnitudes)
     if size == 0:
@@ -78,7 +84,7 @@ def bars_visualizer(
         processed_mags = normalized
     else:
         # Linear scaling fallback - normalize to a fixed max
-        fixed_max = VIZ.linear_scaling_max
+        fixed_max = LINEAR_SCALING_MAX
 
         processed_mags = np.clip(magnitudes / fixed_max, 0.0, 1.0)
     
@@ -136,10 +142,12 @@ def bars_visualizer(
 
 
 
+@register_visualizer("circle", CircleConfig)
 def circle_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "CircleConfig",
     color: Color | None = None,
 
     scale: float | None = None,
@@ -158,10 +166,10 @@ def circle_visualizer(
         base_radius_ratio: Inner circle radius as fraction of max radius
         mirror: If True, mirror lines across horizontal axis
     """
-    scale = scale if scale is not None else VIZ.circle_scale
-    color = color if color is not None else VIZ.circle_color
+    scale = scale if scale is not None else config.scale
+    color = color if color is not None else config.color
 
-    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else VIZ.circle_base_radius_ratio
+    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else config.base_radius_ratio
     
     size = len(magnitudes)
     if size == 0:
@@ -213,10 +221,12 @@ def circle_visualizer(
 
 
 
+@register_visualizer("waveform", WaveformConfig)
 def waveform_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "WaveformConfig",
     color: Color | None = None,
 
     scale: float | None = None,
@@ -232,8 +242,8 @@ def waveform_visualizer(
         color: Line color
         scale: Vertical amplitude as fraction of height
     """
-    scale = scale if scale is not None else VIZ.waveform_scale
-    color = color if color is not None else VIZ.waveform_color
+    scale = scale if scale is not None else config.scale
+    color = color if color is not None else config.color
 
     
     size = len(magnitudes)
@@ -249,7 +259,7 @@ def waveform_visualizer(
     normalized = magnitudes / max_mag
     
     # Subsample for wider wave segments (use every Nth point)
-    subsample = VIZ.waveform_subsample
+    subsample = config.subsample
 
     sampled = normalized[::subsample]
     num_points = len(sampled)
@@ -288,10 +298,13 @@ def waveform_visualizer(
 
 
 
+@register_visualizer("multiband", SpectrumConfig)
+@register_visualizer("spectrum", SpectrumConfig, is_alias=True)
 def multiband_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "SpectrumConfig",
     scale: float | None = None,
     db_floor: float | None = None,
     db_ceiling: float | None = None,
@@ -302,10 +315,10 @@ def multiband_visualizer(
     Bands: Sub-bass (red), Bass (orange), Low-mids (yellow), 
            Mids (green), High-mids (cyan), Highs (purple)
     """
-    scale = scale if scale is not None else VIZ.spectrum_scale
-    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
-    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
-    band_colors = VIZ.band_colors
+    scale = scale if scale is not None else config.scale
+    db_floor = db_floor if db_floor is not None else config.db_floor
+    db_ceiling = db_ceiling if db_ceiling is not None else config.db_ceiling
+    band_colors = config.band_colors
 
     size = len(magnitudes)
     if size == 0:
@@ -328,7 +341,7 @@ def multiband_visualizer(
     ]
     
     # Subsample for wider bars (use every 2nd bin)
-    subsample = VIZ.spectrum_subsample
+    subsample = config.subsample
 
     sampled = normalized[::subsample]
     num_bars = len(sampled)
@@ -386,10 +399,12 @@ def multiband_visualizer(
 
 
 
+@register_visualizer("particles", ParticlesConfig)
 def particles_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "ParticlesConfig",
     color: Color | None = None,
 
     particle_count: int | None = None,
@@ -404,8 +419,8 @@ def particles_visualizer(
         color: Particle color
         particle_count: Number of particles to render
     """
-    particle_count = particle_count if particle_count is not None else VIZ.particle_count
-    color = color if color is not None else VIZ.particle_color
+    particle_count = particle_count if particle_count is not None else config.count
+    color = color if color is not None else config.color
 
     
     size = len(magnitudes)
@@ -415,15 +430,14 @@ def particles_visualizer(
     # Calculate overall energy (emphasize bass frequencies)
     bass_weight = np.linspace(2.0, 0.5, size)
     weighted_mags = magnitudes * bass_weight
-    energy = np.mean(weighted_mags) * VIZ.particle_energy_multiplier
+    energy = np.mean(weighted_mags) * config.energy_multiplier
 
     energy = min(energy, 1.0)
     
     # Pre-calculate dB values for all magnitudes to use for particle movement
     eps = 1e-10
-    eps = 1e-10
-    db_floor = VIZ.particle_db_floor
-    db_ceiling = VIZ.particle_db_ceiling
+    db_floor = config.db_floor
+    db_ceiling = config.db_ceiling
 
     db_values = 20.0 * np.log10(magnitudes + eps)
     normalized_mags = (db_values - db_floor) / (db_ceiling - db_floor)
@@ -443,7 +457,7 @@ def particles_visualizer(
         base_radius = (i / particle_count) * min(width, height) * 0.45
         
         # Magnitude affects radial offset - increased multiplier
-        radius_offset = mag * VIZ.particle_radius_multiplier * energy
+        radius_offset = mag * config.radius_multiplier * energy
 
         radius = base_radius + radius_offset
         
@@ -454,7 +468,7 @@ def particles_visualizer(
         y = int(center_y + math.sin(angle) * radius)
         
         # Particle size based on magnitude
-        size_px = max(2, int(3 + mag * VIZ.particle_size_multiplier))
+        size_px = max(2, int(3 + mag * config.size_multiplier))
 
         
         if 0 <= x < width and 0 <= y < height:
@@ -471,10 +485,12 @@ def particles_visualizer(
 
 
 
+@register_visualizer("symmetry", SymmetryConfig)
 def symmetry_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "SymmetryConfig",
     color: Color | None = None,
 
     scale: float | None = None,
@@ -492,11 +508,11 @@ def symmetry_visualizer(
         color: Bar color
         scale: Height scaling factor
     """
-    scale = scale if scale is not None else VIZ.symmetry_scale
-    color = color if color is not None else VIZ.symmetry_color
+    scale = scale if scale is not None else config.scale
+    color = color if color is not None else config.color
 
-    db_floor = db_floor if db_floor is not None else VIZ.bar_db_floor
-    db_ceiling = db_ceiling if db_ceiling is not None else VIZ.bar_db_ceiling
+    db_floor = db_floor if db_floor is not None else config.db_floor
+    db_ceiling = db_ceiling if db_ceiling is not None else config.db_ceiling
     
     size = len(magnitudes)
     if size == 0:
@@ -511,7 +527,7 @@ def symmetry_visualizer(
         normalized = np.clip(normalized, 0.0, 1.0)
         processed_mags = normalized
     else:
-        fixed_max = VIZ.linear_scaling_max
+        fixed_max = LINEAR_SCALING_MAX
 
         processed_mags = np.clip(magnitudes / fixed_max, 0.0, 1.0)
     
@@ -570,10 +586,12 @@ def symmetry_visualizer(
 
 
 
+@register_visualizer("pulse", PulseConfig)
 def pulse_visualizer(
     magnitudes: np.ndarray,
     width: int,
     height: int,
+    config: "PulseConfig",
     color: Color | None = None,
 
     base_radius_ratio: float | None = None,
@@ -591,11 +609,11 @@ def pulse_visualizer(
         base_radius_ratio: Minimum radius as fraction of screen
         max_radius_ratio: Maximum radius as fraction of screen
     """
-    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else VIZ.pulse_base_radius
-    color = color if color is not None else VIZ.pulse_color
+    base_radius_ratio = base_radius_ratio if base_radius_ratio is not None else config.base_radius
+    color = color if color is not None else config.color
 
-    max_radius_ratio = max_radius_ratio if max_radius_ratio is not None else VIZ.pulse_max_radius
-    line_count = line_count if line_count is not None else VIZ.pulse_line_count
+    max_radius_ratio = max_radius_ratio if max_radius_ratio is not None else config.max_radius
+    line_count = line_count if line_count is not None else config.line_count
 
     size = len(magnitudes)
     if size == 0:
@@ -607,8 +625,8 @@ def pulse_visualizer(
     
     # Convert to dB for better dynamic range
     eps = 1e-10
-    db_floor = VIZ.pulse_db_floor
-    db_ceiling = VIZ.pulse_db_ceiling  # Lower ceiling makes it easier to reach max size
+    db_floor = config.db_floor
+    db_ceiling = config.db_ceiling  # Lower ceiling makes it easier to reach max size
 
     
     bass_avg = np.mean(bass_mags)
@@ -656,39 +674,44 @@ def pulse_visualizer(
     return FrameCommands.single_batch(batch)
 
 
-# Registry of available visualizers - easy to extend
-VISUALIZERS: dict[str, Visualizer] = {
-    "bars": bars_visualizer,
-    "circle": circle_visualizer,
-    "waveform": waveform_visualizer,
-    "multiband": multiband_visualizer,
-    "spectrum": multiband_visualizer,  # Alias for backward compatibility
-    "particles": particles_visualizer,
-    "symmetry": symmetry_visualizer,
-    "pulse": pulse_visualizer,
-}
-
-# Ordered list for cycling through modes (excludes aliases)
-MODE_ORDER = [
-    "bars",
-    "circle",
-    "waveform",
-    "multiband",
-    "particles",
-    "symmetry",
-    "pulse",
-]
 
 
-def get_visualizer(name: str) -> Visualizer:
-    """Get a visualizer by name, with a fallback to bars."""
-    return VISUALIZERS.get(name, bars_visualizer)
+from functools import partial
 
+def get_default_viz_configs() -> dict[str, object]:
+    """Create a map of mode name -> default config instance."""
+    # We only need default configs for base modes and aliases that might be used as keys
+    return {name: cfg_cls() for name, (_, cfg_cls, _) in _VIZ_REGISTRY.items()}
 
-def next_mode(current: str) -> str:
-    """Get the next mode in the cycle."""
-    try:
-        idx = MODE_ORDER.index(current)
-        return MODE_ORDER[(idx + 1) % len(MODE_ORDER)]
-    except ValueError:
-        return MODE_ORDER[0]
+def get_mode_names(include_aliases: bool = False) -> list[str]:
+    """Get list of available visualization mode names."""
+    if include_aliases:
+        return list(_VIZ_REGISTRY.keys())
+    return [name for name, (_, _, is_alias) in _VIZ_REGISTRY.items() if not is_alias]
+
+def get_visualizer(name: str, configs: dict[str, object]) -> Visualizer:
+    """Get a visualizer by name with dependency injection.
+    
+    Args:
+        name: Name of the visualizer mode
+        configs: Config dict with visualizer configs (required)
+        
+    Returns:
+        Visualizer function configured with appropriate settings
+    """
+    if name not in _VIZ_REGISTRY:
+        name = "bars"
+    
+    vis_func, _, _ = _VIZ_REGISTRY[name]
+    config = configs.get(name)
+    
+    # If config not found for name (e.g. alias), try to find by config class
+    if config is None:
+         _, cfg_cls, _ = _VIZ_REGISTRY[name]
+         # Find first config that matches the class
+         for c in configs.values():
+             if isinstance(c, cfg_cls):
+                 config = c
+                 break
+    
+    return partial(vis_func, config=config)

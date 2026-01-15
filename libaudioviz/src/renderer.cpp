@@ -67,12 +67,12 @@ void Renderer::initialize_window(const std::string& font_path) {
     if (!font_path.empty()) {
         font_ = TTF_OpenFont(font_path.c_str(), 16);
         if (!font_) {
-            std::cerr << "Warning: Could not open font '" << font_path << "': " << TTF_GetError() << std::endl;
+            throw std::runtime_error("Could not open font '" + font_path + "': " + std::string(TTF_GetError()));
         } else {
              std::cout << "Loaded font: " << font_path << std::endl;
         }
     } else {
-        std::cerr << "Warning: No font path provided, text will not render" << std::endl;
+        throw std::runtime_error("No font path provided, font is required for the application.");
     }
 
     std::cout << "Window initialized" << std::endl;
@@ -159,23 +159,23 @@ void Renderer::draw_text(const std::string& text, int x, int y,
     
 }
 
-std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
-    std::vector<std::tuple<std::string, int, int>> events;
+std::vector<std::tuple<std::string, std::vector<int>>> Renderer::poll_events() {
+    std::vector<std::tuple<std::string, std::vector<int>>> events;
     SDL_Event e;
     
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
             should_quit_ = true;
-            events.push_back({"quit", 0, 0});
+            events.push_back({"quit", {}});
         }
         else if (e.type == SDL_KEYDOWN) {
-            events.push_back({"keydown", e.key.keysym.sym, 0});
+            events.push_back({"keydown", {e.key.keysym.sym}});
         }
         else if (e.type == SDL_MOUSEBUTTONDOWN) {
-            events.push_back({"mousedown", e.button.x, e.button.y});
+            events.push_back({"mousedown", {e.button.x, e.button.y}});
         }
         else if (e.type == SDL_KEYUP) {
-            events.push_back({"keyup", e.key.keysym.sym, 0});
+            events.push_back({"keyup", {e.key.keysym.sym}});
         }
         else if (e.type == SDL_WINDOWEVENT) {
             if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
@@ -184,7 +184,7 @@ std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
                 if (renderer_) {
                      SDL_RenderSetLogicalSize(renderer_, width_, height_);
                 }
-                events.push_back({"resize", width_, height_});
+                events.push_back({"resize", {width_, height_}});
             }
         }
     }
