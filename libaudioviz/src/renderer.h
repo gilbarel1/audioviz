@@ -2,7 +2,9 @@
 #include <vector>
 #include <tuple>
 #include <string>
+#include <unordered_map>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 
 /**
  * Low-level renderer that provides primitive drawing operations.
@@ -23,7 +25,7 @@ public:
     ~Renderer();
 
     // Window management
-    void initialize_window();
+    void initialize_window(const std::string& font_path);
     int get_width() const { return width_; }
     int get_height() const { return height_; }
 
@@ -37,9 +39,13 @@ public:
     
     void draw_lines(const std::vector<Line>& lines,
                     uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+    
+    // Text rendering
+    void draw_text(const std::string& text, int x, int y,
+                   uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
-    // Event handling
-    std::vector<std::tuple<std::string, int, int>> poll_events();
+    // Event handling - returns list of (event_type, params) tuples
+    std::vector<std::tuple<std::string, std::vector<int>>> poll_events();
     bool should_quit() const { return should_quit_; }
 
 private:
@@ -49,4 +55,8 @@ private:
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
+    TTF_Font* font_ = nullptr;
+    
+    // Cache for text textures (key: text string, value: source texture)
+    std::unordered_map<std::string, SDL_Texture*> text_cache_;
 };

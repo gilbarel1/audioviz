@@ -9,19 +9,24 @@ import sounddevice as sd
 
 from .audio import audio_info, stream_audio
 from .state_manager import StateManager, StateManagerConfig
-from .visualizers import get_visualizer
-from .primitives import FrameCommands
+from .visualizers import get_visualizer, get_default_viz_configs, get_mode_names
+from .config import FrameCommands, DrawBatch, AppConfig, AudioConfig, UIConfig, ButtonType
+from .ui import create_button_panel, render_button_panel, calculate_label_positions
+from .config import Color, BLACK
+
 
 import libaudioviz
 
 
-def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands) -> None:
+def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands, 
+                 labels: list[tuple[str, int, int]] = None, ui_config: UIConfig = None) -> None:
     """
     Send draw commands to the C++ renderer.
     
     Args:
         renderer: The C++ renderer instance
         commands: Frame commands containing background color and draw batches
+        labels: Optional list of (text, x, y) for text rendering
     """
     # Clear with background color
     bg = commands.background
@@ -47,12 +52,30 @@ def render_frame(renderer: libaudioviz.Renderer, commands: FrameCommands) -> Non
             ]
             renderer.draw_lines(cpp_lines, r, g, b, a)
     
+    # Draw text labels (white text)
+    if labels:
+        r, g, b, a = ui_config.text_color.as_tuple()
+        for text, x, y in labels:
+            renderer.draw_text(text, x, y, r, g, b, a)
+
+    
     # Present to screen
     renderer.present()
 
 
 def main() -> int:
     """Main entry point."""
+    # Create config instances (no more globals!)
+    app_config = AppConfig()
+    audio_config = AudioConfig()
+    ui_config = UIConfig()
+    
+    # Visualizer configs (initialized with defaults from registry)
+    viz_configs = get_default_viz_configs()
+    
+    # Derive available modes from button_specs (single source of truth)
+    available_modes = [spec[0] for spec in app_config.button_specs if spec[1] == ButtonType.MODE]
+    
     parser = argparse.ArgumentParser(
         description='AudioViz - Real-time Audio Visualization'
     )
@@ -64,21 +87,23 @@ def main() -> int:
     parser.add_argument(
         '--nperseg',
         type=int,
-        default=1024,
-        help='FFT window size (default: 1024)',
+        default=audio_config.nperseg,
+        help=f'FFT window size (default: {audio_config.nperseg})',
+
     )
     parser.add_argument(
         '--blocksize',
         type=int,
-        default=8192,
-        help='Audio playback buffer size (default: 8192)',
+        default=audio_config.blocksize,
+        help=f'Audio playback buffer size (default: {audio_config.blocksize})',
+
     )
     parser.add_argument(
         '--mode',
         type=str,
-        default='bars',
-        choices=['bars', 'circle'],
-        help='Initial visualization mode (default: bars)',
+        default=app_config.default_mode,
+        choices=available_modes,
+        help=f'Initial visualization mode (default: {app_config.default_mode})',
     )
     parser.add_argument(
         '--no-auto-switch',
@@ -125,9 +150,16 @@ def main() -> int:
         time_per_frame = info.duration / len(stft_channels)
         
         # Initialize C++ Renderer
-        width, height = 1200, 800
+        width, height = app_config.window_width, app_config.window_height
+
         renderer = libaudioviz.Renderer(width, height)
-        renderer.initialize_window()
+        
+        # Load font from configured path
+        try:
+            renderer.initialize_window(app_config.font_path)
+        except Exception as e:
+            print(f"Warning: Renderer initialization issue: {e}", file=sys.stderr)
+            raise
         
         # Initialize state manager
         auto_switch = None if args.no_auto_switch else 5.0
@@ -136,10 +168,14 @@ def main() -> int:
             width=width,
             height=height,
             auto_switch_interval=auto_switch,
+            button_specs=app_config.button_specs,
+            mode_order=tuple(available_modes),
+            app_config=app_config,
+            ui_config=ui_config,
         )
         state_manager = StateManager(config)
         
-        print("Starting playback... (Press Space to switch modes, Esc to quit)")
+        print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
         # Start non-blocking audio playback
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
@@ -164,11 +200,29 @@ def main() -> int:
             magnitudes = np.abs(stft_channels[frame_idx][0]).astype(np.float32)
             
             # Get visualizer and compute draw commands
-            visualizer = get_visualizer(state.mode)
-            commands = visualizer(magnitudes, state.width, state.height)
+            visualizer = get_visualizer(state.mode, viz_configs)
+            viz_commands = visualizer(magnitudes, state.width, state.height)
             
-            # Render the frame
-            render_frame(renderer, commands)
+            
+            if viz_commands:
+                viz_batches = viz_commands.batches
+                bg_color = viz_commands.background
+            else:
+                viz_batches = ()
+                bg_color = BLACK
+            
+            # Render button panel using standalone function
+            button_batches = render_button_panel(state.button_panel, state.mode, ui_config)
+            
+            # Combine visualization and UI batches
+            all_batches = viz_batches + tuple(button_batches)
+            commands = FrameCommands(batches=all_batches, background=bg_color)
+            
+            # Calculate button label positions from config
+            labels = calculate_label_positions(state_manager.button_specs, state.width, ui_config)
+            
+            # Render the frame with text
+            render_frame(renderer, commands, labels, ui_config)
         
         sd.stop()
         print("\nPlayback finished.")

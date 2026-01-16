@@ -3,21 +3,36 @@
 #include <algorithm>
 
 Renderer::Renderer(int width, int height) : width_(width), height_(height) {
+    if (TTF_Init() == -1) {
+        throw std::runtime_error("SDL_ttf could not initialize! TTF_Error: " + std::string(TTF_GetError()));
+    }
     std::cout << "Renderer created (" << width << "x" << height << ")" << std::endl;
 }
 
 Renderer::~Renderer() {
+    // Clean up text cache
+    for (auto& pair : text_cache_) {
+        if (pair.second) {
+            SDL_DestroyTexture(pair.second);
+        }
+    }
+    text_cache_.clear();
+
+    if (font_) {
+        TTF_CloseFont(font_);
+    }
     if (renderer_) {
         SDL_DestroyRenderer(renderer_);
     }
     if (window_) {
         SDL_DestroyWindow(window_);
     }
+    TTF_Quit();
     SDL_Quit();
     std::cout << "Renderer destroyed" << std::endl;
 }
 
-void Renderer::initialize_window() {
+void Renderer::initialize_window(const std::string& font_path) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         throw std::runtime_error("SDL could not initialize! SDL_Error: " + std::string(SDL_GetError()));
     }
@@ -47,6 +62,18 @@ void Renderer::initialize_window() {
     
     // Ensure logical size matches window size initially
     SDL_RenderSetLogicalSize(renderer_, width_, height_);
+    
+    // Load font from provided path
+    if (!font_path.empty()) {
+        font_ = TTF_OpenFont(font_path.c_str(), 16);
+        if (!font_) {
+            throw std::runtime_error("Could not open font '" + font_path + "': " + std::string(TTF_GetError()));
+        } else {
+             std::cout << "Loaded font: " << font_path << std::endl;
+        }
+    } else {
+        throw std::runtime_error("No font path provided, font is required for the application.");
+    }
 
     std::cout << "Window initialized" << std::endl;
 }
@@ -94,23 +121,61 @@ void Renderer::draw_lines(const std::vector<Renderer::Line>& lines,
     }
 }
 
-std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
-    std::vector<std::tuple<std::string, int, int>> events;
+void Renderer::draw_text(const std::string& text, int x, int y,
+                         uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    if (!renderer_ || !font_ || text.empty()) return;
+    
+    SDL_Texture* texture = nullptr;
+    
+    // Check cache
+    auto it = text_cache_.find(text);
+    if (it != text_cache_.end()) {
+        texture = it->second;
+    } else {
+        // Create new texture (WHITE for tinting)
+        SDL_Color white = {255, 255, 255, 255};
+        SDL_Surface* surface = TTF_RenderText_Blended(font_, text.c_str(), white);
+        if (!surface) return;
+        
+        texture = SDL_CreateTextureFromSurface(renderer_, surface);
+        SDL_FreeSurface(surface);
+        
+        if (!texture) return;
+        
+        // Store in cache
+        text_cache_[text] = texture;
+    }
+    
+    // Apply color and alpha modulation
+    SDL_SetTextureColorMod(texture, r, g, b);
+    SDL_SetTextureAlphaMod(texture, a);
+    
+    // Query dimensions
+    int w, h;
+    SDL_QueryTexture(texture, nullptr, nullptr, &w, &h);
+    
+    SDL_Rect dest = {x, y, w, h};
+    SDL_RenderCopy(renderer_, texture, nullptr, &dest);
+    
+}
+
+std::vector<std::tuple<std::string, std::vector<int>>> Renderer::poll_events() {
+    std::vector<std::tuple<std::string, std::vector<int>>> events;
     SDL_Event e;
     
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
             should_quit_ = true;
-            events.push_back({"quit", 0, 0});
+            events.push_back({"quit", {}});
         }
         else if (e.type == SDL_KEYDOWN) {
-            events.push_back({"keydown", e.key.keysym.sym, 0});
+            events.push_back({"keydown", {e.key.keysym.sym}});
         }
         else if (e.type == SDL_MOUSEBUTTONDOWN) {
-            events.push_back({"mousedown", e.button.button, 0});
+            events.push_back({"mousedown", {e.button.x, e.button.y}});
         }
         else if (e.type == SDL_KEYUP) {
-            events.push_back({"keyup", e.key.keysym.sym, 0});
+            events.push_back({"keyup", {e.key.keysym.sym}});
         }
         else if (e.type == SDL_WINDOWEVENT) {
             if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
@@ -119,7 +184,7 @@ std::vector<std::tuple<std::string, int, int>> Renderer::poll_events() {
                 if (renderer_) {
                      SDL_RenderSetLogicalSize(renderer_, width_, height_);
                 }
-                events.push_back({"resize", width_, height_});
+                events.push_back({"resize", {width_, height_}});
             }
         }
     }

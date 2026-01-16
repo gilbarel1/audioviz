@@ -29,7 +29,7 @@ PYBIND11_MODULE(_libaudioviz, m) {
         .def(py::init<int, int>(), py::arg("width"), py::arg("height"))
         
         // Window management
-        .def("initialize_window", &Renderer::initialize_window, "Open the visualization window")
+        .def("initialize_window", &Renderer::initialize_window, py::arg("font_path"), "Open the visualization window with specific font")
         .def("get_width", &Renderer::get_width, "Get current window width")
         .def("get_height", &Renderer::get_height, "Get current window height")
         
@@ -46,6 +46,10 @@ PYBIND11_MODULE(_libaudioviz, m) {
         .def("draw_lines", &Renderer::draw_lines,
              py::arg("lines"), py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
              "Draw batch of lines. Each line is (x1, y1, x2, y2)")
+        .def("draw_text", &Renderer::draw_text,
+             py::arg("text"), py::arg("x"), py::arg("y"),
+             py::arg("r"), py::arg("g"), py::arg("b"), py::arg("a"),
+             "Draw text at position (x, y) with RGBA color")
         
         // Event handling
         .def("poll_events", &Renderer::poll_events,
