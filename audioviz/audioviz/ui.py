@@ -5,11 +5,13 @@ This module provides button panel functionality for mode selection.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional
+from typing import Protocol,Optional
 
 from .config import Rect, DrawBatch, FrameCommands, Color, WHITE, BLACK, Line, ButtonType, UIConfig
 
-
+class UIController(Protocol):
+    def hit_test(self, x: int, y: int) -> Optional[str]:
+        """Test if a click at (x, y) hit any button."""
 
 @dataclass(frozen=True, slots=True)
 class Button:
@@ -21,16 +23,17 @@ class Button:
     height: int
     type: ButtonType  # Button type must be explicitly specified
     
-    def contains(self, px: int, py: int) -> bool:
+    def hit_test(self, px: int, py: int) -> Optional[str]:
         """Check if point (px, py) is inside this button."""
-        return (self.x <= px < self.x + self.width and
-                self.y <= py < self.y + self.height)
+        if self.x <= px < self.x + self.width and self.y <= py < self.y + self.height:
+                return self.label
+        return None
 
 
 class ButtonPanel:
     """A horizontal panel of buttons."""
     
-    def __init__(self, buttons: list[Button]):
+    def __init__(self, buttons: list[UIController]):
         """
         Create a button panel with pre-laid-out buttons.
         
@@ -47,8 +50,8 @@ class ButtonPanel:
             Mode name if a button was clicked, None otherwise
         """
         for button in self.buttons:
-            if button.contains(x, y):
-                return button.label
+            if result := button.hit_test(x, y):
+                return result
         return None
     
 
