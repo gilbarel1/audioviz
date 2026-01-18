@@ -8,7 +8,8 @@ import time
 import sounddevice as sd
 
 from .audio import audio_info, stream_audio
-from .state_manager import StateManager, StateManagerConfig
+from .state_manager import StateStore, StateStoreConfig
+from .controller import AppController
 from .visualizers import get_visualizer, get_default_viz_configs, get_mode_names
 from .config import FrameCommands, DrawBatch, AppConfig, AudioConfig, UIConfig, ButtonType
 from .ui import create_button_panel, render_button_panel, calculate_label_positions, render_timeline, get_timeline_labels
@@ -161,9 +162,9 @@ def main() -> int:
             print(f"Warning: Renderer initialization issue: {e}", file=sys.stderr)
             raise
         
-        # Initialize state manager
+        # Initialize state store and controller
         auto_switch = None if args.no_auto_switch else 5.0
-        config = StateManagerConfig(
+        config = StateStoreConfig(
             initial_mode=args.mode,
             width=width,
             height=height,
@@ -174,7 +175,8 @@ def main() -> int:
             ui_config=ui_config,
             total_duration=info.duration,  # Pass total duration
         )
-        state_manager = StateManager(config)
+        store = StateStore(config)
+        controller = AppController(store, app_config)
         
         print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
@@ -196,13 +198,13 @@ def main() -> int:
             if current_time > info.duration:
                  current_time = info.duration
                  
-            # Sync time to state manager (for UI to know where knob is)
+            # Sync time to state store (for UI to know where knob is)
             # We don't change mode here, just update time info
             # Note: updating state here is slightly inefficient if nothing changed, 
             # but we need smooth progress bar.
-            # Only update if not dragging (or update dragging time separate? NO, state manager handles drag overrides)
-            if not state_manager.state.is_dragging:
-                 state_manager._state = state_manager.state.with_time(current_time)
+            # Only update if not dragging (state store handles drag overrides)
+            if not store.state.is_dragging:
+                 store.state = store.state.with_time(current_time)
 
             frame_idx = int(current_time / time_per_frame)
             if frame_idx >= len(stft_channels):
@@ -211,7 +213,8 @@ def main() -> int:
             
             # Poll events and update state
             events = renderer.poll_events()
-            state = state_manager.update(events)
+            controller.update(events)
+            state = store.state
             
             # Check for seek request
             if state.seek_request is not None:
@@ -235,8 +238,8 @@ def main() -> int:
                 current_time = seek_time
                 
                 # Clear seek request from state
-                state_manager._state = state.with_time(current_time, is_dragging=state.is_dragging, seek_req=None)
-                state = state_manager.state # Refresh local var
+                store.state = state.with_time(current_time, is_dragging=state.is_dragging, seek_req=None)
+                state = store.state # Refresh local var
             
             # Check if we should quit
             
@@ -271,7 +274,7 @@ def main() -> int:
             commands = FrameCommands(batches=all_batches, background=bg_color)
             
             # Calculate button label positions from config
-            labels = calculate_label_positions(state_manager.button_specs, state.width, ui_config)
+            labels = calculate_label_positions(app_config.button_specs, state.width, ui_config)
             
             # Add time labels
             time_labels = get_timeline_labels(state.timeline, state.current_time, ui_config)
