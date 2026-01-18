@@ -181,11 +181,10 @@ def main() -> int:
         print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
         # Start non-blocking audio playback
-        # We need to keep track of where we are in the file to support seeking
         current_sample_idx = 0
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
         playback_start = time.time()
-        playback_offset = 0.0  # Time offset from seeks
+        playback_offset = 0.0
         
         # Main render loop
         while True:
@@ -199,16 +198,11 @@ def main() -> int:
                  current_time = info.duration
                  
             # Sync time to state store (for UI to know where knob is)
-            # We don't change mode here, just update time info
-            # Note: updating state here is slightly inefficient if nothing changed, 
-            # but we need smooth progress bar.
-            # Only update if not dragging (state store handles drag overrides)
             if not store.state.is_dragging:
                  store.state = store.state.with_time(current_time)
 
             frame_idx = int(current_time / time_per_frame)
             if frame_idx >= len(stft_channels):
-                # Loop or stop? Let's stop for now as per original behavior
                 break
             
             # Poll events and update state
@@ -240,8 +234,6 @@ def main() -> int:
                 # Clear seek request from state
                 store.state = state.with_time(current_time, is_dragging=state.is_dragging, seek_req=None)
                 state = store.state # Refresh local var
-            
-            # Check if we should quit
             
             # Check if we should quit
             if not state.is_running or renderer.should_quit():

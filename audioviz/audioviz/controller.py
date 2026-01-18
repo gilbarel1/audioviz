@@ -12,10 +12,9 @@ import ctypes
 from ctypes import c_int, byref
 from .ui import ButtonPanel
 
-# Helper to load SDL for robust mouse polling
+# Helper to load SDL for robust mouse dragging of scrollbar
 try:
     _sdl = ctypes.CDLL("/lib/x86_64-linux-gnu/libSDL2-2.0.so.0")
-    # signature: UINT32 SDL_GetMouseState(int *x, int *y)
     _sdl.SDL_GetMouseState.argtypes = [ctypes.POINTER(c_int), ctypes.POINTER(c_int)]
     _sdl.SDL_GetMouseState.restype = ctypes.c_uint32
     _HAS_SDL = True
@@ -83,11 +82,9 @@ class AppController:
                 # Calculate progress
                 progress = state.timeline.get_progress_at_x(mx)
                 seek_time = progress * state.total_duration
-                # Update state: dragging=True, request seek
                 # This ensures the knob follows mouse and audio seeks continuously
                 new_state = new_state.with_time(seek_time, is_dragging=True, seek_req=seek_time)
         else:
-            # Mouse released
             if state.is_dragging:
                 # Stop dragging
                  new_state = new_state.with_time(state.current_time, is_dragging=False, seek_req=None)
@@ -105,7 +102,6 @@ class AppController:
                 case "resize":
                     if len(params) >= 2:
                         width, height = params[0], params[1]
-                        # We need to recreate button panel on resize
                         labels = [spec[0] for spec in self._config.button_specs]
                         # Fix: Pass ui_config to with_size
                         new_state = new_state.with_size(width, height, labels, self._config.ui_config)
@@ -122,7 +118,6 @@ class AppController:
                 case "mousedown":
                     if len(params) >= 2:
                         x, y = params[0], params[1]
-                        # Note: Timeline is now handled exclusively by _poll_mouse
                         # We only check buttons here
                         if not state.timeline.hit_test(x, y):
                             clicked_mode = state.button_panel.hit_test(x, y)
@@ -149,9 +144,6 @@ class AppController:
             return current
             
         try:
-            # Check if current mode is in the list (it might be an alias or invalid)
-            # If we want to support aliases here, we should resolve them first.
-            # But based on previous refactor, we just cycle the list.
             idx = modes.index(current)
             return modes[(idx + 1) % len(modes)]
         except ValueError:
