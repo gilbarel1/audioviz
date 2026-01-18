@@ -6,6 +6,7 @@ Centralizes all configuration constants to avoid scattered hardcoded values.
 from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum, auto
+from dataclasses import field
 
 
 class ButtonType(Enum):
@@ -117,7 +118,7 @@ class UIConfig:
     
     # Timeline
     timeline_height: int = 40
-    timeline_padding_bottom: int = 20
+    timeline_padding_bottom: int = 40
     timeline_padding_x: int = 50
     timeline_bar_color: Color = Color(60, 60, 60, 200)
     timeline_progress_color: Color = Color(0, 150, 255, 255)
@@ -154,6 +155,7 @@ class AppConfig:
         ("pulse", ButtonType.MODE),
     )
 
+    ui_config: UIConfig = field(default_factory=UIConfig)
     
     # Font path - resolved relative to this module (resources is in parent dir)
     font_path: str = str(Path(__file__).parent.parent / "resources" / "Roboto-Regular.ttf")

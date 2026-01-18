@@ -55,14 +55,14 @@ class VisualizationState:
             is_running=self.is_running
         )
     
-    def with_size(self, width: int, height: int, labels: list[str], ui_config: UIConfig) -> "VisualizationState":
+    def with_size(self, width: int, height: int, button_specs: list[tuple[str, ButtonType]], ui_config: UIConfig) -> "VisualizationState":
         """Return a new state with the size changed."""
         # Cleanly recreate timeline and button panel on resize
         return VisualizationState(
             mode=self.mode,
             width=width,
             height=height,
-            button_panel=create_button_panel(width, list(labels), ui_config),
+            button_panel=create_button_panel(width, button_specs, ui_config),
             timeline=create_timeline(width, height, self.total_duration, ui_config),
             current_time=self.current_time,
             total_duration=self.total_duration,

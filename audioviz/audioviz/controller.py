@@ -102,9 +102,8 @@ class AppController:
                 case "resize":
                     if len(params) >= 2:
                         width, height = params[0], params[1]
-                        labels = [spec[0] for spec in self._config.button_specs]
                         # Fix: Pass ui_config to with_size
-                        new_state = new_state.with_size(width, height, labels, self._config.ui_config)
+                        new_state = new_state.with_size(width, height, list(self._config.button_specs), self._config.ui_config)
                 
                 case "keydown":
                     if len(params) >= 1:
