@@ -12,6 +12,28 @@ from .config import Rect, DrawBatch, FrameCommands, Color, WHITE, BLACK, Line, B
 class UIController(Protocol):
     def hit_test(self, x: int, y: int) -> Optional[str]:
         """Test if a click at (x, y) hit any button."""
+        ...
+
+@dataclass(frozen=True, slots=True)
+class Timeline:
+    """Audio playback timeline/scroller."""
+    x: int
+    y: int
+    width: int
+    height: int
+    total_duration: float
+    
+    def hit_test(self, px: int, py: int) -> bool:
+        """Check if point is within the timeline interaction area."""
+        return (self.x <= px < self.x + self.width and 
+                self.y <= py < self.y + self.height)
+
+    def get_progress_at_x(self, px: int) -> float:
+        """Calculate progress (0.0-1.0) for a given X coordinate."""
+        if self.width <= 0:
+            return 0.0
+        relative_x = px - self.x
+        return max(0.0, min(1.0, relative_x / self.width))
 
 @dataclass(frozen=True, slots=True)
 class Button:
@@ -173,3 +195,68 @@ def create_button_panel(screen_width: int, button_specs: list[tuple[str, ButtonT
     """
     buttons = _layout_buttons(button_specs, screen_width, ui_config)
     return ButtonPanel(buttons)
+
+
+def create_timeline(screen_width: int, screen_height: int, duration: float, ui_config: UIConfig) -> Timeline:
+    """Factory function to create a timeline positioned at the bottom."""
+    width = screen_width - (2 * ui_config.timeline_padding_x)
+    height = ui_config.timeline_height
+    x = ui_config.timeline_padding_x
+    y = screen_height - height - ui_config.timeline_padding_bottom
+    
+    return Timeline(x, y, width, height, duration)
+
+
+def render_timeline(timeline: Timeline, current_time: float, ui_config: UIConfig) -> list[DrawBatch]:
+    """Render the timeline, progress bar, and knob."""
+    batches: list[DrawBatch] = []
+    
+    # Calculate progress
+    progress = 0.0
+    if timeline.total_duration > 0:
+        progress = max(0.0, min(1.0, current_time / timeline.total_duration))
+    
+    # Background bar (thin line or rect)
+    bar_height = 4
+    bar_y = timeline.y + (timeline.height - bar_height) // 2
+    
+    bg_rect = Rect(timeline.x, bar_y, timeline.width, bar_height)
+    batches.append(DrawBatch.from_rects([bg_rect], ui_config.timeline_bar_color))
+    
+    # Progress bar
+    progress_width = int(timeline.width * progress)
+    if progress_width > 0:
+        prog_rect = Rect(timeline.x, bar_y, progress_width, bar_height)
+        batches.append(DrawBatch.from_rects([prog_rect], ui_config.timeline_progress_color))
+    
+    # Knob
+    knob_x = timeline.x + progress_width
+    knob_y = bar_y + bar_height // 2
+    
+    # Draw simple square knob for now as we don't have Circle primitives exposed yet, 
+    # or use a small rect.
+    r = ui_config.timeline_knob_radius
+    knob_rect = Rect(knob_x - r, knob_y - r, r * 2, r * 2)
+    batches.append(DrawBatch.from_rects([knob_rect], ui_config.timeline_knob_color))
+    
+    return batches
+
+def get_timeline_labels(timeline: Timeline, current_time: float, ui_config: UIConfig) -> list[tuple[str, int, int]]:
+    """Get text labels for current time and total duration."""
+    def format_time(seconds: float) -> str:
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{m:02d}:{s:02d}"
+        
+    labels = []
+    y = timeline.y + timeline.height  # Below the bar
+    
+    # Current time (left aligned)
+    labels.append((format_time(current_time), timeline.x, y))
+    
+    # Total duration (right aligned - approx width of text subtracted)
+    # Since we can't measure text width easily here, we'll shift left by constant
+    total_str = format_time(timeline.total_duration)
+    labels.append((total_str, timeline.x + timeline.width - 50, y))
+    
+    return labels

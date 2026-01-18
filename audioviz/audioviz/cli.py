@@ -11,7 +11,7 @@ from .audio import audio_info, stream_audio
 from .state_manager import StateManager, StateManagerConfig
 from .visualizers import get_visualizer, get_default_viz_configs, get_mode_names
 from .config import FrameCommands, DrawBatch, AppConfig, AudioConfig, UIConfig, ButtonType
-from .ui import create_button_panel, render_button_panel, calculate_label_positions
+from .ui import create_button_panel, render_button_panel, calculate_label_positions, render_timeline, get_timeline_labels
 from .config import Color, BLACK
 
 
@@ -172,32 +172,81 @@ def main() -> int:
             mode_order=tuple(available_modes),
             app_config=app_config,
             ui_config=ui_config,
+            total_duration=info.duration,  # Pass total duration
         )
         state_manager = StateManager(config)
         
         print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
         # Start non-blocking audio playback
+        # We need to keep track of where we are in the file to support seeking
+        current_sample_idx = 0
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
         playback_start = time.time()
+        playback_offset = 0.0  # Time offset from seeks
         
         # Main render loop
         while True:
-            elapsed = time.time() - playback_start
-            frame_idx = int(elapsed / time_per_frame)
+            # Calculate current playback time
+            now = time.time()
+            elapsed_play = now - playback_start
+            current_time = playback_offset + elapsed_play
+            
+            # Clamp to duration
+            if current_time > info.duration:
+                 current_time = info.duration
+                 
+            # Sync time to state manager (for UI to know where knob is)
+            # We don't change mode here, just update time info
+            # Note: updating state here is slightly inefficient if nothing changed, 
+            # but we need smooth progress bar.
+            # Only update if not dragging (or update dragging time separate? NO, state manager handles drag overrides)
+            if not state_manager.state.is_dragging:
+                 state_manager._state = state_manager.state.with_time(current_time)
+
+            frame_idx = int(current_time / time_per_frame)
             if frame_idx >= len(stft_channels):
+                # Loop or stop? Let's stop for now as per original behavior
                 break
             
             # Poll events and update state
             events = renderer.poll_events()
             state = state_manager.update(events)
             
+            # Check for seek request
+            if state.seek_request is not None:
+                seek_time = state.seek_request
+                
+                # Stop current playback
+                sd.stop()
+                
+                # Calculate new sample index
+                new_sample_idx = int(seek_time * info.sample_rate)
+                new_sample_idx = max(0, min(new_sample_idx, len(audio_samples) - 1))
+                
+                # Restart playback from new position
+                remaining_samples = audio_samples[new_sample_idx:]
+                if len(remaining_samples) > 0:
+                    sd.play(remaining_samples, info.sample_rate, blocksize=args.blocksize)
+                
+                # Update time tracking
+                playback_start = time.time()
+                playback_offset = seek_time
+                current_time = seek_time
+                
+                # Clear seek request from state
+                state_manager._state = state.with_time(current_time, is_dragging=state.is_dragging, seek_req=None)
+                state = state_manager.state # Refresh local var
+            
+            # Check if we should quit
+            
             # Check if we should quit
             if not state.is_running or renderer.should_quit():
                 break
             
-            # Get current magnitudes
-            magnitudes = np.abs(stft_channels[frame_idx][0]).astype(np.float32)
+            # Get current magnitudes (safe check for bounds)
+            safe_frame_idx = min(frame_idx, len(stft_channels) - 1)
+            magnitudes = np.abs(stft_channels[safe_frame_idx][0]).astype(np.float32)
             
             # Get visualizer and compute draw commands
             visualizer = get_visualizer(state.mode, viz_configs)
@@ -214,12 +263,19 @@ def main() -> int:
             # Render button panel using standalone function
             button_batches = render_button_panel(state.button_panel, state.mode, ui_config)
             
+            # Render timeline
+            timeline_batches = render_timeline(state.timeline, state.current_time, ui_config)
+
             # Combine visualization and UI batches
-            all_batches = viz_batches + tuple(button_batches)
+            all_batches = viz_batches + tuple(button_batches) + tuple(timeline_batches)
             commands = FrameCommands(batches=all_batches, background=bg_color)
             
             # Calculate button label positions from config
             labels = calculate_label_positions(state_manager.button_specs, state.width, ui_config)
+            
+            # Add time labels
+            time_labels = get_timeline_labels(state.timeline, state.current_time, ui_config)
+            labels.extend(time_labels)
             
             # Render the frame with text
             render_frame(renderer, commands, labels, ui_config)

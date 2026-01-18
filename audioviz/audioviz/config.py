@@ -114,6 +114,16 @@ class UIConfig:
     text_color: Color = WHITE
     mode_text_padding_x: int = 10
     mode_text_vertical_correction: int = 16  # Approx height for vertical centering
+    
+    # Timeline
+    timeline_height: int = 40
+    timeline_padding_bottom: int = 20
+    timeline_padding_x: int = 50
+    timeline_bar_color: Color = Color(60, 60, 60, 200)
+    timeline_progress_color: Color = Color(0, 150, 255, 255)
+    timeline_knob_color: Color = Color(255, 255, 255, 255)
+    timeline_text_color: Color = WHITE
+    timeline_knob_radius: int = 8
 
 
 

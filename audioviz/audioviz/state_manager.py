@@ -7,10 +7,21 @@ It provides an immutable state object that drives the render loop.
 from dataclasses import dataclass
 import time
 from typing import Optional, TYPE_CHECKING
-from .ui import ButtonPanel, create_button_panel
+import ctypes
+from ctypes import c_int, byref
+from .ui import ButtonPanel, create_button_panel, Timeline, create_timeline
 from .config import ButtonType, AppConfig, UIConfig
 
-
+# Helper to load SDL for robust mouse polling
+try:
+    _sdl = ctypes.CDLL("/lib/x86_64-linux-gnu/libSDL2-2.0.so.0")
+    # signature: UINT32 SDL_GetMouseState(int *x, int *y)
+    _sdl.SDL_GetMouseState.argtypes = [ctypes.POINTER(c_int), ctypes.POINTER(c_int)]
+    _sdl.SDL_GetMouseState.restype = ctypes.c_uint32
+    _HAS_SDL = True
+except Exception as e:
+    print(f"Warning: Could not load SDL2 for mouse polling: {e}")
+    _HAS_SDL = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +30,7 @@ class StateManagerConfig:
     initial_mode: str = "bars"
     width: int = 800
     height: int = 600
+    total_duration: float = 0.0
     auto_switch_interval: Optional[float] = 5.0
     button_specs: tuple[tuple[str, ButtonType], ...] = ()
     mode_order: tuple[str, ...] = ()  # Dynamic cycle order
@@ -33,6 +45,11 @@ class VisualizationState:
     width: int
     height: int
     button_panel: "ButtonPanel"
+    timeline: "Timeline"
+    current_time: float = 0.0
+    total_duration: float = 0.0
+    seek_request: Optional[float] = None
+    is_dragging: bool = False
     auto_switch_interval: Optional[float] = 5.0
     is_running: bool = True
     
@@ -43,17 +60,44 @@ class VisualizationState:
             width=self.width,
             height=self.height,
             button_panel=self.button_panel,
+            timeline=self.timeline,
+            current_time=self.current_time,
+            total_duration=self.total_duration,
+            seek_request=self.seek_request,
+            is_dragging=self.is_dragging,
             auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
     
-    def with_size(self, width: int, height: int, labels: list[str]) -> "VisualizationState":
+    def with_size(self, width: int, height: int, labels: list[str], ui_config: UIConfig) -> "VisualizationState":
         """Return a new state with the size changed."""
+        # Cleanly recreate timeline and button panel on resize
         return VisualizationState(
             mode=self.mode,
             width=width,
             height=height,
-            button_panel=create_button_panel(width, list(labels), self._ui_config),
+            button_panel=create_button_panel(width, list(labels), ui_config),
+            timeline=create_timeline(width, height, self.total_duration, ui_config),
+            current_time=self.current_time,
+            total_duration=self.total_duration,
+            seek_request=self.seek_request,
+            is_dragging=self.is_dragging,
+            auto_switch_interval=self.auto_switch_interval,
+            is_running=self.is_running
+        )
+    
+    def with_time(self, time: float, is_dragging: bool = False, seek_req: Optional[float] = None) -> "VisualizationState":
+        """Return a new state with updated time."""
+        return VisualizationState(
+            mode=self.mode,
+            width=self.width,
+            height=self.height,
+            button_panel=self.button_panel,
+            timeline=self.timeline,
+            current_time=time,
+            total_duration=self.total_duration,
+            seek_request=seek_req,
+            is_dragging=is_dragging, 
             auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
@@ -65,6 +109,11 @@ class VisualizationState:
             width=self.width,
             height=self.height,
             button_panel=self.button_panel,
+            timeline=self.timeline,
+            current_time=self.current_time,
+            total_duration=self.total_duration,
+            seek_request=None,
+            is_dragging=False,
             auto_switch_interval=self.auto_switch_interval,
             is_running=False
         )
@@ -87,6 +136,8 @@ class StateManager:
             width=config.width,
             height=config.height,
             button_panel=create_button_panel(config.width, list(config.button_specs), config.ui_config),
+            timeline=create_timeline(config.width, config.height, config.total_duration, config.ui_config),
+            total_duration=config.total_duration,
             auto_switch_interval=config.auto_switch_interval,
         )
         self._button_specs = list(config.button_specs)
@@ -119,6 +170,10 @@ class StateManager:
         # First, apply event-driven transitions
         self._state = self._process_events(self._state, events)
         
+        # Poll mouse directly for robust dragging
+        if _HAS_SDL:
+            self._state = self._poll_mouse(self._state)
+
         # Then, apply time-driven transitions (if still running)
         if self._state.is_running and self._state.auto_switch_interval is not None:
             current_time = time.time()
@@ -126,6 +181,35 @@ class StateManager:
                 self._switch_mode()
         
         return self._state
+
+    def _poll_mouse(self, state: VisualizationState) -> VisualizationState:
+        """Poll SDL mouse state directly to handle dragging."""
+        x = c_int(0)
+        y = c_int(0)
+        mask = _sdl.SDL_GetMouseState(byref(x), byref(y))
+        
+        # Left button is bit 0 (value 1)
+        is_left_down = (mask & 1) != 0
+        mx, my = x.value, y.value
+        
+        new_state = state
+        
+        if is_left_down:
+            # Check if we clicked inside timeline (start drag) or are already dragging
+            if state.timeline.hit_test(mx, my) or state.is_dragging:
+                # Calculate progress
+                progress = state.timeline.get_progress_at_x(mx)
+                seek_time = progress * state.total_duration
+                # Update state: dragging=True, request seek
+                # This ensures the knob follows mouse and audio seeks continuously
+                new_state = new_state.with_time(seek_time, is_dragging=True, seek_req=seek_time)
+        else:
+            # Mouse released
+            if state.is_dragging:
+                # Stop dragging
+                 new_state = new_state.with_time(state.current_time, is_dragging=False, seek_req=None)
+        
+        return new_state
 
     def _process_events(self, state: VisualizationState, events: list[tuple[str, tuple[int, ...]]]) -> VisualizationState:
         """Pure-ish function to calculate next state based on events.
@@ -142,7 +226,7 @@ class StateManager:
                 case "resize":
                     if len(params) >= 2:
                         width, height = params[0], params[1]
-                        new_state = new_state.with_size(width, height, self._button_specs)
+                        new_state = new_state.with_size(width, height, self._button_specs, self._ui_config)
                 
                 case "keydown":
                     if len(params) >= 1:
@@ -157,16 +241,20 @@ class StateManager:
                 case "mousedown":
                     if len(params) >= 2:
                         x, y = params[0], params[1]
-                        clicked_mode = state.button_panel.hit_test(x, y)
-                        if clicked_mode:
-                            clicked_mode = clicked_mode.lower()
-                            if clicked_mode != self._state.mode:
-                                self._state = self._state.with_mode(clicked_mode)
-                                self._last_switch_time = time.time()
-                                print(f"Switched to mode: {clicked_mode}")
-                                new_state = new_state.with_mode(clicked_mode)
+                        
+                        # Note: Timeline is now handled exclusively by _poll_mouse
+                        # We only check buttons here
+                        if not state.timeline.hit_test(x, y):
+                            clicked_mode = state.button_panel.hit_test(x, y)
+                            if clicked_mode:
+                                clicked_mode = clicked_mode.lower()
+                                if clicked_mode != self._state.mode:
+                                    self._state = self._state.with_mode(clicked_mode)
+                                    self._last_switch_time = time.time()
+                                    new_state = new_state.with_mode(clicked_mode)
+        
         return new_state
-    
+
     def _switch_mode(self) -> None:
         """Switch to the next visualization mode."""
         new_mode = self._get_next_mode(self._state.mode)
@@ -191,4 +279,3 @@ class StateManager:
             return modes[(idx + 1) % len(modes)]
         except ValueError:
             return modes[0] if modes else "bars"
-
