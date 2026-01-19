@@ -8,10 +8,11 @@ import time
 import sounddevice as sd
 
 from .audio import audio_info, stream_audio
-from .state_manager import StateManager, StateManagerConfig
+from .state_manager import StateStore, StateStoreConfig
+from .controller import AppController
 from .visualizers import get_visualizer, get_default_viz_configs, get_mode_names
 from .config import FrameCommands, DrawBatch, AppConfig, AudioConfig, UIConfig, ButtonType
-from .ui import create_button_panel, render_button_panel, calculate_label_positions
+from .ui import create_button_panel, render_button_panel, calculate_label_positions, render_timeline, get_timeline_labels, render_play_button, get_play_button_label
 from .config import Color, BLACK
 
 
@@ -161,9 +162,9 @@ def main() -> int:
             print(f"Warning: Renderer initialization issue: {e}", file=sys.stderr)
             raise
         
-        # Initialize state manager
+        # Initialize state store and controller
         auto_switch = None if args.no_auto_switch else 5.0
-        config = StateManagerConfig(
+        config = StateStoreConfig(
             initial_mode=args.mode,
             width=width,
             height=height,
@@ -172,32 +173,106 @@ def main() -> int:
             mode_order=tuple(available_modes),
             app_config=app_config,
             ui_config=ui_config,
+            total_duration=info.duration,  # Pass total duration
         )
-        state_manager = StateManager(config)
+        store = StateStore(config)
+        controller = AppController(store, app_config)
         
         print("Starting playback... (Click buttons to switch modes, Esc to quit)")
         
         # Start non-blocking audio playback
+        current_sample_idx = 0
         sd.play(audio_samples, info.sample_rate, blocksize=args.blocksize)
         playback_start = time.time()
+        playback_offset = 0.0
+        
+        # Track previous pause state to handle transitions
+        was_paused = False
         
         # Main render loop
         while True:
-            elapsed = time.time() - playback_start
-            frame_idx = int(elapsed / time_per_frame)
+            # Check for pause state changes
+            if store.state.is_paused:
+                if not was_paused:
+                    sd.stop()
+                    playback_offset = current_time
+                    was_paused = True
+                
+                current_time = store.state.current_time
+                if store.state.seek_request is not None:
+                     # Seek while paused
+                     current_time = store.state.seek_request
+                     playback_offset = current_time
+                     # Clear seek request
+                     store.state = store.state.with_time(current_time, is_dragging=store.state.is_dragging, seek_req=None)
+                     
+            else:
+                if was_paused:
+                    # Calculate new start time based on current offset
+                    start_sample = int(playback_offset * info.sample_rate)
+                    start_sample = max(0, min(start_sample, len(audio_samples) - 1))
+                    remaining = audio_samples[start_sample:]
+                    
+                    if len(remaining) > 0:
+                        sd.play(remaining, info.sample_rate, blocksize=args.blocksize)
+                        
+                    playback_start = time.time()
+                    was_paused = False
+                
+                # Normal playback time calculation
+                now = time.time()
+                elapsed_play = now - playback_start
+                current_time = playback_offset + elapsed_play
+            
+            # Clamp to duration
+            if current_time > info.duration:
+                 current_time = info.duration
+                 
+            # Sync time to state store (for UI to know where knob is)
+            if not store.state.is_dragging:
+                 store.state = store.state.with_time(current_time)
+
+            frame_idx = int(current_time / time_per_frame)
             if frame_idx >= len(stft_channels):
                 break
             
             # Poll events and update state
             events = renderer.poll_events()
-            state = state_manager.update(events)
+            controller.update(events)
+            state = store.state
+            
+            # Check for seek request (only if playing - paused seek handled above)
+            if state.seek_request is not None and not state.is_paused:
+                seek_time = state.seek_request
+                
+                # Stop current playback
+                sd.stop()
+                
+                # Calculate new sample index
+                new_sample_idx = int(seek_time * info.sample_rate)
+                new_sample_idx = max(0, min(new_sample_idx, len(audio_samples) - 1))
+                
+                # Restart playback from new position
+                remaining_samples = audio_samples[new_sample_idx:]
+                if len(remaining_samples) > 0:
+                    sd.play(remaining_samples, info.sample_rate, blocksize=args.blocksize)
+                
+                # Update time tracking
+                playback_start = time.time()
+                playback_offset = seek_time
+                current_time = seek_time
+                
+                # Clear seek request from state
+                store.state = state.with_time(current_time, is_dragging=state.is_dragging, seek_req=None)
+                state = store.state # Refresh local var
             
             # Check if we should quit
             if not state.is_running or renderer.should_quit():
                 break
             
-            # Get current magnitudes
-            magnitudes = np.abs(stft_channels[frame_idx][0]).astype(np.float32)
+            # Get current magnitudes (safe check for bounds)
+            safe_frame_idx = min(frame_idx, len(stft_channels) - 1)
+            magnitudes = np.abs(stft_channels[safe_frame_idx][0]).astype(np.float32)
             
             # Get visualizer and compute draw commands
             visualizer = get_visualizer(state.mode, viz_configs)
@@ -214,12 +289,26 @@ def main() -> int:
             # Render button panel using standalone function
             button_batches = render_button_panel(state.button_panel, state.mode, ui_config)
             
+            # Render play button
+            play_btn_batches = render_play_button(state.play_button, state.is_paused, ui_config)
+            
+            # Render timeline
+            timeline_batches = render_timeline(state.timeline, state.current_time, ui_config)
+
             # Combine visualization and UI batches
-            all_batches = viz_batches + tuple(button_batches)
+            all_batches = viz_batches + tuple(button_batches) + tuple(play_btn_batches) + tuple(timeline_batches)
             commands = FrameCommands(batches=all_batches, background=bg_color)
             
             # Calculate button label positions from config
-            labels = calculate_label_positions(state_manager.button_specs, state.width, ui_config)
+            labels = calculate_label_positions(app_config.button_specs, state.width, ui_config)
+            
+            # Add play button label
+            play_label = get_play_button_label(state.play_button, state.is_paused, ui_config)
+            labels.append(play_label)
+            
+            # Add time labels
+            time_labels = get_timeline_labels(state.timeline, state.current_time, ui_config)
+            labels.extend(time_labels)
             
             # Render the frame with text
             render_frame(renderer, commands, labels, ui_config)

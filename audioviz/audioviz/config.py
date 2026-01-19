@@ -6,11 +6,13 @@ Centralizes all configuration constants to avoid scattered hardcoded values.
 from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum, auto
+from dataclasses import field
 
 
 class ButtonType(Enum):
     """Types of buttons that can be created."""
     MODE = auto()  # Mode selection buttons
+    ACTION = auto()  # Play/Pause button
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +105,9 @@ class UIConfig:
     mode_button_padding: int = 8
     mode_button_y_offset: int = 10
     
+    # Play/Pause button
+    play_button_width: int = 42 # Square-ish (matches height visually) to fit circle
+    
     # Mode button colors
     mode_button_bg_color: Color = Color(40, 40, 40, 220)
     mode_button_hover_color: Color = Color(60, 60, 60, 220)
@@ -114,6 +119,16 @@ class UIConfig:
     text_color: Color = WHITE
     mode_text_padding_x: int = 10
     mode_text_vertical_correction: int = 16  # Approx height for vertical centering
+    
+    # Timeline
+    timeline_height: int = 40
+    timeline_padding_bottom: int = 40
+    timeline_padding_x: int = 50
+    timeline_bar_color: Color = Color(60, 60, 60, 200)
+    timeline_progress_color: Color = Color(0, 150, 255, 255)
+    timeline_knob_color: Color = Color(255, 255, 255, 255)
+    timeline_text_color: Color = WHITE
+    timeline_knob_radius: int = 8
 
 
 
@@ -144,6 +159,7 @@ class AppConfig:
         ("pulse", ButtonType.MODE),
     )
 
+    ui_config: UIConfig = field(default_factory=UIConfig)
     
     # Font path - resolved relative to this module (resources is in parent dir)
     font_path: str = str(Path(__file__).parent.parent / "resources" / "Roboto-Regular.ttf")
