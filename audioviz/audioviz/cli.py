@@ -12,7 +12,7 @@ from .state_manager import StateStore, StateStoreConfig
 from .controller import AppController
 from .visualizers import get_visualizer, get_default_viz_configs, get_mode_names
 from .config import FrameCommands, DrawBatch, AppConfig, AudioConfig, UIConfig, ButtonType
-from .ui import create_button_panel, render_button_panel, calculate_label_positions, render_timeline, get_timeline_labels
+from .ui import create_button_panel, render_button_panel, calculate_label_positions, render_timeline, get_timeline_labels, render_play_button, get_play_button_label
 from .config import Color, BLACK
 
 
@@ -186,12 +186,43 @@ def main() -> int:
         playback_start = time.time()
         playback_offset = 0.0
         
+        # Track previous pause state to handle transitions
+        was_paused = False
+        
         # Main render loop
         while True:
-            # Calculate current playback time
-            now = time.time()
-            elapsed_play = now - playback_start
-            current_time = playback_offset + elapsed_play
+            # Check for pause state changes
+            if store.state.is_paused:
+                if not was_paused:
+                    sd.stop()
+                    playback_offset = current_time
+                    was_paused = True
+                
+                current_time = store.state.current_time
+                if store.state.seek_request is not None:
+                     # Seek while paused
+                     current_time = store.state.seek_request
+                     playback_offset = current_time
+                     # Clear seek request
+                     store.state = store.state.with_time(current_time, is_dragging=store.state.is_dragging, seek_req=None)
+                     
+            else:
+                if was_paused:
+                    # Calculate new start time based on current offset
+                    start_sample = int(playback_offset * info.sample_rate)
+                    start_sample = max(0, min(start_sample, len(audio_samples) - 1))
+                    remaining = audio_samples[start_sample:]
+                    
+                    if len(remaining) > 0:
+                        sd.play(remaining, info.sample_rate, blocksize=args.blocksize)
+                        
+                    playback_start = time.time()
+                    was_paused = False
+                
+                # Normal playback time calculation
+                now = time.time()
+                elapsed_play = now - playback_start
+                current_time = playback_offset + elapsed_play
             
             # Clamp to duration
             if current_time > info.duration:
@@ -210,8 +241,8 @@ def main() -> int:
             controller.update(events)
             state = store.state
             
-            # Check for seek request
-            if state.seek_request is not None:
+            # Check for seek request (only if playing - paused seek handled above)
+            if state.seek_request is not None and not state.is_paused:
                 seek_time = state.seek_request
                 
                 # Stop current playback
@@ -258,15 +289,22 @@ def main() -> int:
             # Render button panel using standalone function
             button_batches = render_button_panel(state.button_panel, state.mode, ui_config)
             
+            # Render play button
+            play_btn_batches = render_play_button(state.play_button, state.is_paused, ui_config)
+            
             # Render timeline
             timeline_batches = render_timeline(state.timeline, state.current_time, ui_config)
 
             # Combine visualization and UI batches
-            all_batches = viz_batches + tuple(button_batches) + tuple(timeline_batches)
+            all_batches = viz_batches + tuple(button_batches) + tuple(play_btn_batches) + tuple(timeline_batches)
             commands = FrameCommands(batches=all_batches, background=bg_color)
             
             # Calculate button label positions from config
             labels = calculate_label_positions(app_config.button_specs, state.width, ui_config)
+            
+            # Add play button label
+            play_label = get_play_button_label(state.play_button, state.is_paused, ui_config)
+            labels.append(play_label)
             
             # Add time labels
             time_labels = get_timeline_labels(state.timeline, state.current_time, ui_config)

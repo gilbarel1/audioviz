@@ -6,7 +6,7 @@ and the immutable VisualizationState data structure.
 
 from dataclasses import dataclass
 from typing import Optional
-from .ui import ButtonPanel, create_button_panel, Timeline, create_timeline
+from .ui import ButtonPanel, create_button_panel, Timeline, create_timeline, Button, create_playback_ui
 from .config import ButtonType, AppConfig, UIConfig
 
 
@@ -32,10 +32,12 @@ class VisualizationState:
     height: int
     button_panel: "ButtonPanel"
     timeline: "Timeline"
+    play_button: "Button"
     current_time: float = 0.0
     total_duration: float = 0.0
     seek_request: Optional[float] = None
     is_dragging: bool = False
+    is_paused: bool = False
     auto_switch_interval: Optional[float] = 5.0
     is_running: bool = True
     
@@ -47,27 +49,33 @@ class VisualizationState:
             height=self.height,
             button_panel=self.button_panel,
             timeline=self.timeline,
+            play_button=self.play_button,
             current_time=self.current_time,
             total_duration=self.total_duration,
             seek_request=self.seek_request,
             is_dragging=self.is_dragging,
+            is_paused=self.is_paused,
             auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
     
     def with_size(self, width: int, height: int, button_specs: list[tuple[str, ButtonType]], ui_config: UIConfig) -> "VisualizationState":
         """Return a new state with the size changed."""
-        # Cleanly recreate timeline and button panel on resize
+        # Cleanly recreate playback controls and button panel on resize
+        play_btn, timeline = create_playback_ui(width, height, self.total_duration, self.is_paused, ui_config)
+        
         return VisualizationState(
             mode=self.mode,
             width=width,
             height=height,
             button_panel=create_button_panel(width, button_specs, ui_config),
-            timeline=create_timeline(width, height, self.total_duration, ui_config),
+            timeline=timeline,
+            play_button=play_btn,
             current_time=self.current_time,
             total_duration=self.total_duration,
             seek_request=self.seek_request,
             is_dragging=self.is_dragging,
+            is_paused=self.is_paused,
             auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
@@ -80,10 +88,33 @@ class VisualizationState:
             height=self.height,
             button_panel=self.button_panel,
             timeline=self.timeline,
+            play_button=self.play_button,
             current_time=time,
             total_duration=self.total_duration,
             seek_request=seek_req,
             is_dragging=is_dragging, 
+            is_paused=self.is_paused,
+            auto_switch_interval=self.auto_switch_interval,
+            is_running=self.is_running
+        )
+        
+    def with_paused(self, is_paused: bool, ui_config: UIConfig) -> "VisualizationState":
+        """Return a new state with paused status toggled."""
+        # We need to recreate the play button to update its label, 
+        play_btn, _ = create_playback_ui(self.width, self.height, self.total_duration, is_paused, ui_config)
+        
+        return VisualizationState(
+            mode=self.mode,
+            width=self.width,
+            height=self.height,
+            button_panel=self.button_panel,
+            timeline=self.timeline,
+            play_button=play_btn,
+            current_time=self.current_time,
+            total_duration=self.total_duration,
+            seek_request=self.seek_request,
+            is_dragging=self.is_dragging,
+            is_paused=is_paused,
             auto_switch_interval=self.auto_switch_interval,
             is_running=self.is_running
         )
@@ -96,10 +127,12 @@ class VisualizationState:
             height=self.height,
             button_panel=self.button_panel,
             timeline=self.timeline,
+            play_button=self.play_button,
             current_time=self.current_time,
             total_duration=self.total_duration,
             seek_request=None,
             is_dragging=False,
+            is_paused=self.is_paused,
             auto_switch_interval=self.auto_switch_interval,
             is_running=False
         )
@@ -118,12 +151,14 @@ class StateStore:
         Args:
             config: Configuration object
         """
+        play_btn, timeline = create_playback_ui(config.width, config.height, config.total_duration, False, config.ui_config)
         self._state = VisualizationState(
             mode=config.initial_mode,
             width=config.width,
             height=config.height,
             button_panel=create_button_panel(config.width, list(config.button_specs), config.ui_config),
-            timeline=create_timeline(config.width, config.height, config.total_duration, config.ui_config),
+            timeline=timeline,
+            play_button=play_btn,
             total_duration=config.total_duration,
             auto_switch_interval=config.auto_switch_interval,
         )

@@ -65,7 +65,7 @@ class AppController:
             self._store.state = new_state
 
     def _poll_mouse(self, state: VisualizationState) -> VisualizationState:
-        """Poll SDL mouse state directly to handle dragging."""
+        """Poll SDL mouse state directly to handle dragging of the knob in the timeline."""
         x = c_int(0)
         y = c_int(0)
         mask = _sdl.SDL_GetMouseState(byref(x), byref(y))
@@ -79,15 +79,15 @@ class AppController:
         if is_left_down:
             # Check if we clicked inside timeline (start drag) or are already dragging
             if state.timeline.hit_test(mx, my) or state.is_dragging:
-                # Calculate progress
                 progress = state.timeline.get_progress_at_x(mx)
                 seek_time = progress * state.total_duration
                 # This ensures the knob follows mouse and audio seeks continuously
+                # If paused, we still want to seek, but keep dragged state
                 new_state = new_state.with_time(seek_time, is_dragging=True, seek_req=seek_time)
         else:
+            # Check for clicks on Play/Pause button
             if state.is_dragging:
-                # Stop dragging
-                 new_state = new_state.with_time(state.current_time, is_dragging=False, seek_req=None)
+                new_state = new_state.with_time(state.current_time, is_dragging=False, seek_req=None)
         
         return new_state
 
@@ -117,8 +117,15 @@ class AppController:
                 case "mousedown":
                     if len(params) >= 2:
                         x, y = params[0], params[1]
-                        # We only check buttons here
-                        if not state.timeline.hit_test(x, y):
+                        x, y = params[0], params[1]
+                        
+                        # Check Play/Pause button
+                        if state.play_button.hit_test(x, y):
+                             new_state = state.with_paused(not state.is_paused, self._config.ui_config)
+                             print(f"Playback {'Paused' if new_state.is_paused else 'Resumed'}")
+                             
+                        # Check timeline and mode buttons
+                        elif not state.timeline.hit_test(x, y):
                             clicked_mode = state.button_panel.hit_test(x, y)
                             if clicked_mode:
                                 clicked_mode = clicked_mode.lower()

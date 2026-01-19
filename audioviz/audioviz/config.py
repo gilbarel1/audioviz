@@ -12,6 +12,7 @@ from dataclasses import field
 class ButtonType(Enum):
     """Types of buttons that can be created."""
     MODE = auto()  # Mode selection buttons
+    ACTION = auto()  # Play/Pause button
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +104,9 @@ class UIConfig:
     mode_button_width: int = 110
     mode_button_padding: int = 8
     mode_button_y_offset: int = 10
+    
+    # Play/Pause button
+    play_button_width: int = 42 # Square-ish (matches height visually) to fit circle
     
     # Mode button colors
     mode_button_bg_color: Color = Color(40, 40, 40, 220)
